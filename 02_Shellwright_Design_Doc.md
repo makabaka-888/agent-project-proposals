@@ -213,7 +213,7 @@ Parquet rows per turn (run hash, task, attempt, prompt/completion/cached tokens,
 | `truncation_loss` | a failing test quotes a string only in a dropped output region |
 | `wrong_solution` | everything else |
 
-Trajectory flags (non-exclusive; they never change the label or the §1 test) mark the gate's residual and failure classes from vendor posts on coding and data agents (§15). Keystrokes parse as in §7.6 step 1; thresholds are fixed on the dev slice.
+Trajectory flags (non-exclusive; they never change the label or the §1 test) mark the gate's residual and failure classes from vendor posts on coding and data agents and a public failure taxonomy (§15). Keystrokes parse as in §7.6 step 1; thresholds are fixed on the dev slice.
 
 | Flag | Rule |
 |---|---|
@@ -402,8 +402,8 @@ List these under experience **only with a real organization and engagement**: (1
 - **Training:** cross-harness trace conversion; view parity (arms b vs c); decontamination; LoRA memory arithmetic.
 - **Evaluation:** pass@k vs pass^k, paired bootstrap, MDE and power, Holm, A/A floors, fractional factorials and aliasing, reproducing single-lab numbers.
 - **Behavioral:** "a time results didn't reproduce" (S0b and the 11-point investigation).
-- **Drills** (paraphrased themes from public agent-engineering interview reports): *"pass@k vs pass^k: what each tells you, and which you ship on"* → §9.1, §1 claim 4; *"rebuild the state at each step from an agent's trajectory logs"* → §7.3 (4), §7.6 steps 1–2, §7.5; *"write the agent loop without a framework"* → §7.2–§7.3.
-- **Write-up:** the S4 write-up (§10) is one post under the mentee's own byline, working title *"Two harnesses, one 9B, an 11-point gap: what survives on a laptop"*: hook, context, the work (failure before fix: rung-0 labels, then the ladder, §9.2), what I'd do differently (the pre-declared null or fallback: §12 null wording, §8.3 9B rule), takeaways. Every number traces to the results table; vendor numbers are labelled.
+- **Drills** (practice prompts on common agent-engineering themes): *"Pass@k vs pass^k: what does each tell you?"* → §9.1, §1 claim 4; *"Rebuild the state at each step from an agent's trajectory logs."* → §7.3 (4), §7.6 steps 1–2, §7.5; *"Write the agent loop without a framework."* → §7.2–§7.3.
+- **Write-up:** one post under the mentee's own byline (S4, §10), working title *"Two harnesses, one 9B, an 11-point gap: what survives on a laptop"*: hook, context, the work (failure before fix: rung-0 labels, then the ladder, §9.2), what I'd do differently (the pre-declared null or fallback: §12 null wording, §8.3 9B rule), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
@@ -422,3 +422,4 @@ List these under experience **only with a real organization and engagement**: (1
 - *τ-bench* (pass^k) — https://arxiv.org/abs/2406.12045 ; Chen et al. (unbiased pass@k) — https://arxiv.org/abs/2107.03374
 - *Same Model, Different Harness* (Aug 2026; unverified, re-check in S0) — https://arxiv.org/abs/2608.26218
 - data-eng-bench — https://github.com/Snowflake-Labs/data-eng-bench (accessed 2026-10-22) ; vendor posts (vendor-reported; seen via search 2026-10-22, full text re-read in S0): data-eng-bench — https://www.snowflake.com/en/blog/engineering/data-eng-bench-data-engineering-agent-benchmark/ ; ArcticMem — https://www.snowflake.com/en/blog/engineering/arcticmem-persistent-memory-ai-agents/
+- *Why Do Multi-Agent LLM Systems Fail?* (MAST taxonomy; re-check in S0) — https://arxiv.org/abs/2503.13657

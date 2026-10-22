@@ -176,7 +176,7 @@ On algorithm-generated logs random beats the GPT-4o all-at-once judge on step-le
 - **Key**: sha256 of the canonical request (model hash, messages, tools, sampling, seed, server flags). Sorted keys and normalized numbers prevent `25` vs `25.0` divergence, the int-vs-float bug τ²-bench v1.0.1 fixed in its banking_knowledge domain (#397).
 - **Index**: SQLite (run, step, span, parent, role, key, snapshot hash, outcome); content-deduplicated blobs.
 - **Modes**: *pure* (model and tools from cassette; viewing, diffing); *verify-tools* (model from cassette, tools live, final state hash asserted; CI). *Strict* applies to both: an unmatched request fails with a field-level diff, VCR-style.
-- **Replay tiers**, by what is redone: *observation* renders stored spans (Phoenix, report); *scoring* re-scores stored spans and §7.3 snapshots with a new checker, rubric or judge (all of Who&When; a checker costs seconds, a §9 judge 9B tokens), so a scorer-only change needs no harness run; *execution* re-runs harness code on recorded responses (*pure*, then *verify-tools*), the only tier that catches R0.
+- **What a change re-runs**: a report or viewer change re-renders stored spans only (Phoenix, report); a new checker, rubric or judge re-scores stored spans and §7.3 snapshots without a harness run (all of Who&When; a checker costs seconds, a §9 judge 9B tokens); harness code alone re-runs on recorded responses, VCR-style (*pure*, then *verify-tools*), and only that catches R0.
 - **No look-ahead**: a reader opened at fork step *k* refuses entries with step ≥ *k*.
 
 ### 7.3 Environment snapshots
@@ -229,7 +229,7 @@ On algorithm-generated logs random beats the GPT-4o all-at-once judge on step-le
 - **Set U (headline)**: every injection whose run fails, labelled *k\** = *k* by the injector alone, no live filter, until ≥ 150 cases. Recovered injections are not failures; recovery rate per fault type is reported. Label noise (a later natural error causes the failure) hits forks and judges alike.
 - **Set V (fidelity)**: 60 U cases whose faulted suffix fails ≥ 4/5 live and whose clean prefix from *k* succeeds ≥ 4/5. That is fork search's own statistic, so forks should be near ceiling: V reports sample cost and noise robustness only, never evidence that forks beat judges.
 
-**Failure classes** (reported for coding and data agents, §15) are non-exclusive tags, by rule, else by the §5.4 rubric (natural failures only); they never move *k\**. Per-class accuracy is descriptive (Wilson intervals, no test).
+**Failure classes** (reported for coding, data and multi-agent systems, §15) are non-exclusive tags, by rule, else by the §5.4 rubric (natural failures only); they never move *k\**. Per-class accuracy is descriptive (Wilson intervals, no test).
 
 | Class | Rule |
 |---|---|
@@ -238,7 +238,7 @@ On algorithm-generated logs random beats the GPT-4o all-at-once judge on step-le
 | False investigation | steps probing correct state as if it were the bug; rubric only |
 | Tool loop | one call (tool, canonical arguments) repeated with an unchanged state hash until the step cap (§7.5) |
 
-No rediscovery class (§15): it needs a result to leave the context, and BlackBox runs never compact or span sessions (§5.1); 02 (compaction) and 09 (memory files) own it.
+No rediscovery class (§15): it needs a result to leave the context, and BlackBox runs never compact or span sessions (§5.1); 02 (compaction) owns it; 09 reports the cross-session kind descriptively (Planned relay).
 
 ### 7.8 Investigator agent — loop
 - **Observes** a span-tree digest (step, role, tool, argument, result and state-diff digests), the checker's failure message and fork results so far.
@@ -325,7 +325,7 @@ Replay fidelity (hash match, strict-miss rate, latency vs live rerun) is tested 
 
 **Ablation ladder**: random → all-at-once judge → + per-step state diffs → step-by-step judge → compute-matched judge (self-consistency over *m* votes, *m* set so judge tokens ≈ fork-search tokens per failure; 60 cases) → *resample* forks → + *stronger* → + *oracle* → investigator.
 
-**Reporting rules**: success comes from the benchmark checker (backend state, BFCL's call-path subset, τ² airline's communication check; §5.1–5.2), never from the agent's final message or own report of success; the retail NL judge is reported apart; a compute ratio beside every judge-vs-fork gap; build, flags and GGUF hashes on every table; injected and natural failures apart; no comparison with an API model never run; nulls published.
+**Reporting rules**: success comes from the benchmark checker (backend state, BFCL's call-path subset, τ² airline's communication check; §5.1–5.2), as τ² and BFCL score it, not from the agent's final message; the retail NL judge is reported apart; a compute ratio beside every judge-vs-fork gap; build, flags and GGUF hashes on every table; injected and natural failures apart; no comparison with an API model never run; nulls published.
 
 ## 10. Milestones (19 hours / 15 sessions)
 
@@ -381,8 +381,8 @@ Replay fidelity (hash match, strict-miss rate, latency vs live rerun) is tested 
 - **Applied LLM**: why temperature 0 is not deterministic; hybrid-attention KV budgets; quantization effects.
 - **Experimentation**: paired designs, McNemar vs. bootstrap, the pass^k estimator, power curves, "not significant" ≠ "no regression".
 - **Research / behavioural**: last recoverable vs. earliest decisive step; why a set filtered by your own method cannot test it; pre-registration; publishing nulls.
-- **Drills** (paraphrased themes from public agent-engineering interview reports): *"Your eval says your method wins: what could be fooling you?"* → §7.7, §7.9, §9; *"A model swap moves pass rate three points: real or noise?"* → §7.9, §9; *"Rebuild state history and recovery points from raw trajectory logs."* → §7.1, §7.3, §7.4; *"Calibrate an LLM judge against human labels."* → §5.4, §9.
-- **Write-up:** one post under the mentee's own byline (interview sprint, §10), working title *"Why temperature 0 isn't deterministic on my laptop, measured"*: hook, context, the work (failure before fix: a temperature-0 rerun that flips its outcome, then replay, forks and the power-sized gate), what I'd do differently (the pre-declared null or fallback: a clean grid's entry-level bound, §7.6; INCONCLUSIVE verdicts, §7.9), takeaways. Every number traces to the results table; vendor numbers are labelled.
+- **Drills** (practice prompts on common agent-engineering themes): *"Your eval says your method wins: what else could explain it?"* → §7.7, §7.9, §9; *"Reconstruct what an agent saw and changed at each step from its logs."* → §7.1, §7.3, §7.4; *"Calibrate an LLM judge against human labels."* → §5.4, §9.
+- **Write-up:** one post under the mentee's own byline (session 15, §10), working title *"Is temperature 0 deterministic on my laptop? I measured it"*: hook, context, the work (failure before fix: a temperature-0 rerun that flips its outcome, then replay, forks and the power-sized gate), what I'd do differently (the pre-declared null or fallback: a clean grid's entry-level bound, §7.6; INCONCLUSIVE verdicts, §7.9), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
@@ -392,7 +392,7 @@ Replay fidelity (hash match, strict-miss rate, latency vs live rerun) is tested 
 - Prior art: https://arxiv.org/abs/2607.16200 · https://pypi.org/project/reeltime/ · https://pypi.org/project/vcrpy/ · https://docs.langchain.com/oss/python/langgraph/use-time-travel
 - Telemetry: https://github.com/open-telemetry/semantic-conventions-genai · https://arize.com/docs/phoenix/release-notes/05-2026/05-15-2026-otel-semconv-conversion
 - llama.cpp server: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md · https://github.com/ggml-org/llama.cpp/releases · Apple Silicon throughput: https://github.com/ggml-org/llama.cpp/discussions/4167
-- Failure classes (accessed 2026-10-22): vendor posts (vendor-reported) https://www.snowflake.com/en/blog/engineering/data-eng-bench-data-engineering-agent-benchmark/ · https://www.snowflake.com/en/blog/engineering/ai-agent-memory-experience-cards/ · https://www.snowflake.com/en/blog/engineering/arcticmem-persistent-memory-ai-agents/ · https://www.snowflake.com/webinars/snowflake-in-practice-cortex-code-coco-deep-dive-20261007/ (webinar abstract) · unbounded agent loops: https://arxiv.org/abs/2607.01641
+- Failure classes: vendor posts (vendor-reported; seen via search 2026-10-22, full text re-read in S0) https://www.snowflake.com/en/blog/engineering/data-eng-bench-data-engineering-agent-benchmark/ · https://www.snowflake.com/en/blog/engineering/ai-agent-memory-experience-cards/ · https://www.snowflake.com/en/blog/engineering/arcticmem-persistent-memory-ai-agents/ · unbounded agent loops: https://arxiv.org/abs/2607.01641 · multi-agent failure taxonomy (MAST: step repetition, missing or incorrect verification; re-check in S0): https://arxiv.org/abs/2503.13657
 - Nondeterminism: https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/ · https://docs.vllm.ai/en/stable/features/batch_invariance/
 - Models: https://huggingface.co/Qwen/Qwen3.5-4B · https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507 · https://huggingface.co/unsloth (Qwen3.5-{2B,4B,9B}-GGUF, Qwen3-4B-Instruct-2507-GGUF) · https://artificialanalysis.ai/articles/qwen3-5-small-models
 - GitHub Actions billing: https://docs.github.com/en/billing/concepts/product-billing/github-actions · self-hosted runners: https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners

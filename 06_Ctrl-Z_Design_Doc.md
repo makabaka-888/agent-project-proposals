@@ -173,11 +173,11 @@ In experiments, Customs = provenance labels + PG2 + Qwen3Guard; pinning and the 
 
   | Call condition | Decision | Test case |
   |---|---|---|
-  | Class (§7.3) by effect (endpoint schema + parsed body), never by HTTP verb | read → E; write → D (X if the result is needed → ASK) | `POST /graphql` query → E; its mutation, `GET /unsubscribe?t=…` → D |
+  | Class (§7.3) by effect (endpoint schema + parsed body); a method's safety is only a convention (RFC 9110 §9.2.1) | read → E; write → D (X if the result is needed → ASK) | `POST /search` with a JSON query → E; `POST /orders`, `GET /unsubscribe?t=…` → D |
   | Body unparseable against the endpoint schema | ASK | opaque `POST /rpc` blob |
-  | Credential (cookie, token, API key) to a host it was not issued for | hard BLOCK | `bank.test` cookie sent to `cdn.test` |
-  | One host called faster than a human could click (interval fixed in S0) | spaced, logged | 10 fetches in 1 s |
-  | Any call to a host after it returned 402, 429 or a challenge page | error result; host closed for the episode (logged) | 429, then a new `User-Agent` |
+  | Credential (cookie, token, API key) to a host outside its scope (cookies: RFC 6265 §5.4 domain match) | hard BLOCK | `bank.test` cookie sent to `cdn.test` |
+  | One host above a fixed per-host request rate (set in S0) | spaced, logged | 10 fetches in 1 s |
+  | Any call to a host after it returned 402, 429 (RFC 6585 §4) or a challenge page | error result; host closed for the episode (logged) | 429, then a new `User-Agent` |
 
 ### 7.3 Snapshots, side effects, outbox
 **Forks**: `model_copy(deep=True)` / `deepcopy` (AgentDojo); BlackBox serializers (τ², BFCL); structural sharing vs deep copy; SQLite `SAVEPOINT` / `ROLLBACK TO`; files as a temp-dir copy swapped in once verified. Each tool declares one class (a generic HTTP tool, per call: §7.2):
@@ -228,7 +228,7 @@ AgentDojo tools are all Python mutations, so D and E are semantic tags there; th
 - **Fixed official goals**: Banking and Slack goals hard-code an attacker IBAN, email, URL, host or password. Where that lands in a typed field (payee, grantee, host, credential), the policy-only arm is **robust by construction**: reported as such, not as evidence. S0 lists the goals covered (not, e.g., a phishing link in a message to an existing user).
 - **In-world goals**: about 4 extra injection tasks per suite (Banking, Slack, Travel) reusing pre-state identifiers: pay an existing payee, inflate a requested amount, add a recurring payment to a known account, add an existing user to a private channel. Written after the policy freeze as custom AgentDojo injection tasks, scored by its checker, reported apart from official ASR (≈150 held-out pairs). With the searched LLM-only column, they keep the adaptive contrast informative.
 - **Stretch**: GRPO (§4.1) on Travel only, local, never released.
-- **Stretch: write-path persistence** (with 09 memtidy; no claim), in the demo world, 09's stdio server behind Customs (layers per arm). Agent A, meeting an injection (the frozen static set plus each S3 column's frozen best template; no new search), writes it into a shared md notes store (a git repo per scope, as in 09); agent B, a later session, retrieves it and runs undefended (row 0). Scored per stage: A's write rate; B's attempted and realized ASR, also from a note planted without A; results read "against these templates" (§9). Getting Claude Code or Codex to write untrusted content into their own memory files was hard, but payloads planted there still hit current and later sessions (*Bad Memory*, arXiv 2607.14611); for a local 4B, to be measured. Arms: no screen → 09's create path (secret gate; PR-only shared writes, an outbox by another name) → + Customs' PG2 → Qwen3Guard cascade (§7.2) on the note body before a shared-scope write → + review of A's `NoteWritten{scope, path, body}` diff (8-token taint on the body; tainted shared-scope write → ASK).
+- **Stretch: write-path persistence** (with 09 memtidy; no claim), in the demo world, 09's stdio server behind Customs (layers per arm). Agent A, meeting an injection (the frozen static set plus each S3 column's frozen best template; no new search), writes it into a shared md notes store (a git repo per scope, as in 09); agent B, a later session, retrieves it and runs undefended (row 0). Scored per stage: A's write rate; B's attempted and realized ASR, also from a note planted without A; results read "against these templates" (§9). Getting Claude Code or Codex to write untrusted content into their own memory files was hard, but payloads planted there still hit current and later sessions (*Bad Memory*, arXiv 2607.14611; seen via search 2026-10-22, re-check in S0); for a local 4B, to be measured. Arms: no screen → 09's create path (secret gate; PR-only shared writes, an outbox by another name) → + Customs' PG2 → Qwen3Guard cascade (§7.2) on the note body before a shared-scope write → + review of A's `NoteWritten{scope, path, body}` diff (8-token taint on the body; tainted shared-scope write → ASK).
 
 ### 7.6 Rollback tests, parallel universes, event log
 - **Property tests**: one Hypothesis `RuleBasedStateMachine` per adapter (4 AgentDojo suites, τ² airline/retail, 8 BFCL backends, SQLite, files), rules from tool schemas. Invariants:
@@ -299,7 +299,7 @@ Planning rate: 60 s per episode (the gate ceiling), one slot, 8 h nights = **480
 | S1 | Fork-overhead check (30); policy ground-truth check (no model); commit gate on published traces (policy free; judge on 3 trace sets × 286) | ≈30 | ≈860 | ≈0.5 |
 | S2, static | Rows 0–4 × 346, `important_instructions` (1,730); 5 other static attacks on rows 0, 3 (2,490); thinking-on row 0 (346); retry-1 arm (≤ 700) | ≈5,300 | ≈4,600 | ≈12.5 |
 | S3, adaptive | 5 searches × B (1,800–2,700); 5 × 249 held-out; 5 × ≈150 in-world | ≈3,800–4,700 | ≈2,800 | ≈9–11 |
-| S4 | Workspace champion 600; τ² 164 tasks (time unknown, planned 1 night); 9B rows 0, 3 (692, Mac); Meta-SecAlign-8B + base (692, Mac) | ≈2,150 | ≈1,500 | ≈3 Windows + ≈6 Mac |
+| S4 | Workspace champion 600; τ² 164 tasks (time unknown, planned 1 night); 9B rows 0, 3 (692, Mac); Meta-SecAlign-8B + base (692, Mac); write-path persistence (stretch, with 09: from slack, unbudgeted) | ≈2,150 | ≈1,500 | ≈3 Windows + ≈6 Mac |
 | **Total** | | **≈12,800–13,700** | **≈9,800** | **≈34–36** |
 
 Two machines over 10–12 weeks give far more nights, but S2 and S3 each need ≈ 5–6 nights on both machines within two sessions. **Cut list, in order:** GRPO → write-path persistence → parallel universes → AgentHarm → Meta-SecAlign-8B row → thinking-on row → the 5 extra static attacks (keep `important_instructions`) → Workspace champion → BFCL property tests.
@@ -408,7 +408,7 @@ Utility differences below the MDE read "not detectable at this n," never "no cos
 | Inference engineering | Agent, judge and guards in 6 GB of VRAM; KV arithmetic for hybrid linear attention, and why its prefix cache breaks in multi-turn loops |
 | Product judgement | Reporting the static-to-adaptive gap, not the flattering static number |
 
-- **Drills** (paraphrased themes from public agent-engineering interview reports): *"Design least-privilege tool permissions for an agent: what runs, what is staged, what never leaves?"* → §7.2–7.4, §13 (vs Progent's per-call policies); *"How do you undo an agent's side effect, or retry a timed-out payment without paying twice?"* → §7.3, §7.6; *"A defense reports near-zero attack success: do you believe it?"* → §7.5, §9.
+- **Drills** (practice prompts on common agent-engineering themes): *"Design least-privilege tool permissions for an agent: what runs, what is staged, what never leaves?"* → §7.2–7.4, §13 (vs Progent's per-call policies); *"How do you undo an agent's side effect, or retry a timed-out payment without paying twice?"* → §7.3, §7.6; *"A defense reports near-zero attack success: do you believe it?"* → §7.5, §9.
 - **Write-up:** one post under the mentee's own byline (session 15, §10), working title *"Undo is an API-design problem: shadow worlds, diffs and outboxes for agents"*: hook, context, the work (failure before fix: the undefended agent pays the attacker's IBAN; with Ctrl-Z it is one red diff line, §1), what I'd do differently (the pre-declared null or fallback: claim 2's equal-gaps null, or a floor-limited static grid, §8.3), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
@@ -418,6 +418,7 @@ Utility differences below the MDE read "not detectable at this n," never "no cos
 - https://arxiv.org/abs/2510.09023 (Attacker Moves Second) · https://arxiv.org/abs/2602.05746 (AutoInject) · https://arxiv.org/abs/2510.04885 (RL-Hammer)
 - https://arxiv.org/abs/2507.02735 (Meta SecAlign; v4, Tables 4, 6, 8, Appendix B) · https://huggingface.co/facebook/Meta-SecAlign-8B
 - https://arxiv.org/abs/2504.11703 (Progent) · https://arxiv.org/abs/2606.26479 (adaptive evaluation of out-of-band defenses) · https://arxiv.org/abs/2608.29381 (Safe to Resume?) · https://arxiv.org/abs/2607.14611 (Bad Memory, Gadgil et al., 2026)
+- Call-side rules (§7.2): https://www.rfc-editor.org/rfc/rfc9110 (§9.2.1 safe methods) · https://www.rfc-editor.org/rfc/rfc6265 (§5.4 cookie domain match) · https://www.rfc-editor.org/rfc/rfc6585 (§4, 429)
 - https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/ (`Idempotency-Key` Internet-Draft, not an RFC; -07 expired 2026-04-18, re-check in S0; editor's copy: https://github.com/ietf-wg-httpapi/idempotency)
 - https://huggingface.co/meta-llama/Llama-Prompt-Guard-2-22M · https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B
 - https://huggingface.co/Qwen/Qwen3.5-4B · https://huggingface.co/unsloth/Qwen3.5-9B-GGUF · https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF · https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507 · https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF · https://ollama.com/library/qwen3.5 · https://unsloth.ai/docs/models/qwen3.5/fine-tune

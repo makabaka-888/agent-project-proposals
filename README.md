@@ -22,7 +22,7 @@ Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-p
 
 [IDEATION.md](IDEATION.md) records how the first eight were chosen: 30 brainstormed ideas, three judges' scores, and why the others were dropped. Several rejected ideas, such as Ghostrun, Metagame and AgentMall, make good stretch goals. 09 was added on 2026-10-22 and scored by the same three lenses (IDEATION.md, "Added After the Original Selection").
 
-> **09 builds on the mentor's own tool.** memtidy is the mentor's planned open-source project (no code yet). 09's §2 "Who builds what" sets the credit split and the conflict-of-interest safeguards: the mentee owns the benchmark, and memtidy is only a system under test. Mentor and mentee agree it in writing before S0.
+> **09 builds on the mentor's own tool.** memtidy is the mentor's planned open-source project (no code yet). 09's §2 "Who builds what" sets the credit split and the conflict-of-interest safeguards: the mentee owns the benchmark (mdsieve) and builds a reference tool to memtidy's spec as its system under test; memtidy itself stays the mentor's and is benchmarked only once it exists. Upstreaming waits for the mentor's pre-release check and written contributor terms. Mentor and mentee agree it in writing before S0.
 
 ## Choosing One
 
@@ -34,10 +34,10 @@ Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-p
 | Multimodal / computer-use | 04 Crosshair | 06 Ctrl-Z |
 | Trust & safety / security ML | 06 Ctrl-Z | 05 BlackBox |
 | Recsys / ranking (continues the earlier repo) | 08 SimCrowd | 01 Compass |
-| Agent quality / evaluation (eval harnesses, judge calibration, regression gates) | 05 BlackBox | 02 Shellwright |
+| Evaluation infrastructure (eval harnesses, judge calibration, regression gates) | 05 BlackBox | 02 Shellwright |
 | Context engineering / agent memory and developer tools | 09 memtidy | 03 Spelunker |
 
-The docs cross-reference each other where one project's component helps another, for example BlackBox's τ² and BFCL state serializers reused by Ctrl-Z, or Shellwright's distillation trainer reused by Spelunker. A second project can therefore reuse parts of the first instead of starting from zero. 09 memtidy likewise records every agent run as a BlackBox cassette.
+The docs cross-reference each other where one project's component helps another, for example BlackBox's τ² and BFCL state serializers reused by Ctrl-Z, or Shellwright's distillation trainer reused by Spelunker. A second project can therefore reuse parts of the first instead of starting from zero. 09 memtidy likewise records every run of its local agent loop as a BlackBox (05) cassette.
 
 ## Shared Design Principles
 

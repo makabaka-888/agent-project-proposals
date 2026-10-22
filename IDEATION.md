@@ -34,7 +34,7 @@ Scores are 1-10 per judge; **Mean** is their average. Rows are sorted by mean sc
 | **Crosshair** | GUI, browser & games | A 2B model that clicks like a 9B. Every rendered page labels itself for free, and a coarse-to-fine zoom cascade adds accuracy at test time. | 7 | 7 | 6.5 | 6.8 | Selected: [04 Crosshair](04_Crosshair_Design_Doc.md) |
 | **Metagame** | GUI, browser & games | A 4B model that out-thinks its opponent: LLM-guided minimax + Bayesian opponent modeling for competitive Pokémon on a local Showdown server. | 6 | 6 | 8.5 | 6.8 | Not selected (see below) |
 | **Tripwire** | GUI, browser & games | Red team vs. blue team for computer-use agents. An attacker LLM evolves pop-ups and fake buttons, and an action firewall stops a 4B agent from being hijacked. | 7 | 6.5 | 6.5 | 6.7 | Not selected (see below) |
-| **NightShift** | Infra, memory & safety | Agent memory that sleeps on it: a local MCP memory server that consolidates, versions and forgets facts while the laptop is idle. | 7 | 7 | 6 | 6.7 | Not selected (see below); its question re-scoped in [09 memtidy](09_memtidy_Design_Doc.md) |
+| **NightShift** | Infra, memory & safety | Agent memory that sleeps on it: a local MCP memory server that consolidates, versions and forgets facts while the laptop is idle. | 7 | 7 | 6 | 6.7 | Not selected (see below); its space is revisited by [09 memtidy](09_memtidy_Design_Doc.md) |
 | **PocketGym** | Training small agents | Multi-turn GRPO on a gaming laptop: take a 1.7B model from near-zero to most-of-the-time in a household simulator, overnight. | 5 | 8.5 | 6 | 6.5 | Merged into [01 Compass](01_Compass_Design_Doc.md) |
 | **Respawn** | Training small agents | A 4B game agent that learns from every death: memory vs. playbook vs. nightly weight consolidation, measured on BALROG. | 7 | 6 | 6.5 | 6.5 | Not selected |
 | **PatchFunnel** | Dev & terminal | A retrieval-first funnel from issue to patch that lets a 4B-9B laptop model compete on SWE-bench by adding structure instead of parameters. | 7 | 7 | 5 | 6.3 | Not selected (see below) |
@@ -98,7 +98,7 @@ Rules applied to every brief:
 - **AgentMall**: A distinctive ranking-for-agents question, but it overlaps SimCrowd as the recsys-agent bridge and Ctrl-Z on injection defense. Local-endpoint configuration of Magentic Marketplace is unverified, and four claims x arms x seeds exceeds the compute budget. A good follow-on if SimCrowd lands early.
 - **ToolSmith**: Safe and feasible, but verified-trajectory function-calling distillation is a crowded genre (xLAM, APIGen-MT, ToolACE). A Qwen3-4B student will likely lose to off-the-shelf Qwen3.5-4B on BFCL. The tool-calling cluster is already covered by BlackBox and Ctrl-Z.
 - **MuscleMemory**: No public benchmark exercises its core compile/replay/de-optimize loop. MiniWoB re-randomizes each seed, Mind2Web is offline, and the drift suite is internal. The real fix, a self-hosted WebArena site, is heavy on 16 GB RAM, so Crosshair took the GUI slot.
-- **NightShift**: The memory space is crowded (Mem0, Zep, Letta), and the headline LongMemEval score depends on a swapped-in local judge. Ingestion takes 1-3 nights, and the 'agent sleeps at night' hook repeats across several ideas. Its most novel experiment, memory vs long context on a hybrid model, could be a section of Spelunker. Re-scoped on 2026-10-22 as 09 memtidy, which drops the memory-quality claim and answers each of these reasons point by point (09 §2).
+- **NightShift**: The memory space is crowded (Mem0, Zep, Letta), and the headline LongMemEval score depends on a swapped-in local judge. Ingestion takes 1-3 nights, and the 'agent sleeps at night' hook repeats across several ideas. Its most novel experiment, memory vs long context on a hybrid model, could be a section of Spelunker. 09 memtidy, added on 2026-10-22 at the mentor's request, works in the same space but drops the memory-quality claim and answers each of these reasons (09 §2).
 - **PocketGym**: Merged into Compass as a bounded GRPO-lite arm on TextCraft. As a standalone project, multi-turn ALFWorld GRPO needs about 2.9M backprop tokens per iteration, or 30-50 h per arm, which does not fit the schedule.
 - **Customs**: Merged into Ctrl-Z as the input-side gateway layer, so the four-idea security cluster becomes one input-vs-outcome defense comparison.
 - **Sparring**: Fatal feasibility flaw: it plans QLoRA on Qwen3.5, which Unsloth advises against, and vLLM GRPO rollouts are unsupported there. Victim-query throughput is several times too high. Kept only as a frozen evolutionary attacker plus an optional single-generation Qwen3-1.7B GRPO stretch inside Ctrl-Z.
@@ -128,19 +128,19 @@ The mentor asked to add memtidy, the mentor's own planned open-source tool for f
 |---|---|---|---|---|---|
 | Agent cost under noise | 7.5 | 8 | 7.5 | 7.7 | Base of 09 |
 | Does md context help? | 5.5 | 7.5 | 6 | 6.3 | Grafted: tool uptake and the pointer ablation (claim 3b). Dropped: the stuffed-at-startup arm, a near by-construction win that also repeats NightShift's memory-vs-long-context experiment (03 owns it), and an AGENTbench-lite arm likely at 0% with a 4B |
-| Governed writes | 8 | 5.5 | 6.5 | 6.7 | Grafted as the Planned tier (create, duplicates, scopes, two-laptop relay). Not the headline: it rested on an internal synthetic suite, Glitchhound's flaw |
+| Governed writes | 8 | 5.5 | 6.5 | 6.7 | Grafted: the S0 CredData target, the leak scan and invariant I7 (Core); create, duplicates, scopes, the other invariants and the two-laptop relay (Planned). Not the headline: it rested on an internal synthetic suite, Glitchhound's flaw |
 
 3. **Synthesize, write, review.** The winner absorbed the grafts. The doc was reviewed adversarially through four lenses (template, facts, feasibility and statistics, privacy and credit), fixed over two rounds, then scored as an idea:
 
 | Idea | Lens | Pitch | Feas. | Career | Novelty | Mean | Outcome |
 |---|---|---|---|---|---|---|---|
-| **memtidy** | Infra, memory & safety | Grep or index, settled for small agents: a public benchmark measures what a laptop 4B agent pays in tokens to find one note under thousands of plugin markdown files, and whether a noise filter, an FTS5 index or a one-line MCP pointer earns the saving. | 7.5 | 7.5 | 7.5 | 7.5 | Added: [09 memtidy](09_memtidy_Design_Doc.md) |
+| **memtidy** | Infra, memory & safety | Grep or index for small agents, measured: a public benchmark of what a laptop 4B agent pays in tokens to find one note under thousands of plugin markdown files, how much of any saving the noise filter and the FTS5 index each earn, and whether a one-line pointer changes tool uptake. | 7.5 | 7.5 | 7.5 | 7.5 | Added: [09 memtidy](09_memtidy_Design_Doc.md) |
 
-**What changed since NightShift.** No memory-quality claim and no LLM judge in any headline; indexing in minutes, not nights; no "sleeps at night" hook; memory vs long context left to 03 Spelunker.
+**What changed since NightShift.** No memory-quality claim and no LLM judge in any headline; the FTS5 index builds in minutes, only claim 4's embedding may take a night, and no agent arm waits on it; no "sleeps at night" hook; memory vs long context left to 03 Spelunker.
 
-**Conflict of interest.** memtidy is the mentor's own pre-release tool. 09 therefore makes the mentee's benchmark (mdsieve) the deliverable and memtidy a system under test, with credit, upstreaming and publication rules agreed in writing before S0 (09 §2, §11).
+**Conflict of interest.** memtidy is the mentor's own pre-release tool. 09 therefore makes the mentee's benchmark (mdsieve) the deliverable, with a mentee-built reference tool to memtidy's spec as the system under test; memtidy itself (no code yet) stays the mentor's and is benchmarked only once it exists. Credit, upstreaming and publication rules are agreed in writing before S0 (09 §2, §11).
 
 **Weaknesses the judges raised**, kept visible as for the other ideas:
-- The headline is narrower than Shellwright's or Spelunker's, and the likeliest winner may be a simple path-rule filter. 09 pre-registers "filter suffices" as a publishable outcome.
+- The headline is niche, and the likeliest winner may be a simple path-rule filter. 09 pre-registers "filter suffices" as a publishable outcome.
 - The S0 reproduction (gitleaks on CredData) checks the secret gate, not the search headline, so LongMemEval's BM25 retrieval row is a second S0 target.
 - The headline sits close to the mentor's own evaluation plans for memtidy, so publication order and citation are agreed before S0.

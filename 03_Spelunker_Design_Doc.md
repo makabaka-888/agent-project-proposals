@@ -52,7 +52,7 @@ Deep-research agents have two problems. The live web changes, so evaluations can
 - **05 BlackBox** owns cache-hit and seed-variance methodology and record/replay; Spelunker uses its metrics and cassettes.
 - **01 Compass** sidesteps the hybrid-cache hazard (llama.cpp #22384) with standard-attention Qwen3; Spelunker keeps Qwen3.5 and measures prefix reuse in S0 (§7.2).
 - **07 HarnessForge** could search the context-policy knobs (trigger, ledger cap) set here by hand.
-- **09 memtidy** pits a local agent's own grep loop against noise-filtered SQLite FTS5 search and deterministic create tools on noisy local md files; Spelunker keeps retriever choice on web corpora and memory vs long context (Claims 1–2, `note`/`recall`).
+- **09 memtidy** pits a local agent's own grep loop against a noise filter and a SQLite FTS5 index on noisy local md files, and runs a no-agent retriever ladder (rg, FTS5, Qwen3-Embedding-0.6B, hybrid RRF) as a kill rule for vectors on md; Spelunker keeps retriever choice inside an agent on web corpora and memory vs long context (Claims 1–3, `note`/`recall`).
 
 ## 3. Alignment With Prior Experience
 
@@ -396,8 +396,8 @@ Never invent an employer or dates: North American employers verify employment, a
 - **Training:** rejection sampling, per-step distillation, loss masking, LoRA targets on non-standard layers, why not QLoRA.
 - **Experimentation:** paired designs, MDEs, non-inferiority margins, judge κ, contamination controls.
 - **Behavioral:** compute and floor gates, dropping LangGraph for byte-stable prompts, reporting failed claims.
-- **Drills** (paraphrased themes from public agent-engineering interview reports): *"Keep an agent's memory inside a fixed token budget, and show it never overflows."* → §7.1 invariants, §7.2; *"Cut cost and latency with prompt caching, compaction and tool-result offloading without losing accuracy."* → §7.2, §9.3 Claim 2; *"How do you know the LLM judge is not fooling you?"* → §7.5, §9.4.
-- **Write-up:** one post under the mentee's own byline, working title *"What each thousand tokens and each retriever buys a research agent with the Wi-Fi off"*: hook, context, the work (failure before fix: ReAct@64k ceiling hits, then the ledger), what I'd do differently (the pre-declared null or fallback: "no difference detected at this n", §9.3, or "not testable on 6 GB", §8), takeaways. Every number traces to the results table; vendor numbers are labelled.
+- **Drills** (practice prompts on common agent-engineering themes): *"Keep an agent's memory inside a fixed token budget, and show it never overflows."* → §7.1 invariants, §7.2; *"Your agent's prompt grows every turn: how do you bound it, and what does that cost in accuracy?"* → §7.2, §9.3 Claim 2; *"How do you check a local LLM judge before you trust its scores?"* → §7.5, §9.4.
+- **Write-up:** one post under the mentee's own byline (session 15, §10), working title *"What each thousand tokens and each retriever buys a research agent with the Wi-Fi off"*: hook, context, the work (failure before fix: ReAct@64k ceiling hits, then the ledger), what I'd do differently (the pre-declared null or fallback: "no difference detected at this n", §9.3, or "not testable on 6 GB", §8), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
