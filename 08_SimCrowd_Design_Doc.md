@@ -113,22 +113,22 @@ The code (MIT) targets Python 3.9.12, PyTorch 1.13.1 and the OpenAI API; SimCrow
 | Source | Kuaishou short-video logs, CC BY-SA 4.0 |
 | Scale | 27,285 users; standard logs 7,551 items, 1,436,609 interactions; random pool 7,583 items |
 | Random exposures | 1,186,059 interactions (4/22–5/08) where a recommendation was replaced by a random-pool item (~0.37% of traffic) |
-| Feedback | 12 signals, e.g. `is_click`, `long_view`, `is_like` |
+| Feedback | 12 signals, e.g. `is_click` (a click in the two-column UI; in the single-column UI a valid play: complete if ≤ 7 s, else > 7 s watched), `long_view`, `is_like` |
 | Text | Supplementary captions, cover text, 4-level categories (examples in Chinese) |
 
 **S0 dataset decision** (criterion: side information to render items as text; a 2026-10 desk check favours KuaiRand):
 - **Open Bandit Dataset (OBD, ZOZOTOWN):** truly randomized (Uniform Random vs. Bernoulli TS), but items are anonymized `item_feature_0..3`, no text. Expected to fail.
-- **KuaiRand:** expected primary. S0 measures caption coverage on random-exposure items and tests replacement uniformity (χ²); if not uniform, replay uses inverse propensity scoring (IPS) with empirical propensities.
+- **KuaiRand:** expected primary. S0 measures caption coverage on random-exposure items and tests replacement uniformity (χ²); if not uniform, replay uses inverse propensity scoring (IPS) with empirical propensities. Logs carry no UI field, only a `tab` scenario ID (per-`tab` UI mapping unverified; re-check in S0), so S0 also fixes the `is_click` scope: G6, the replay click rate and the clickbait set use two-column events if their count suffices, else all events with G6 reported split by `tab`.
 - **MIND (fallback):** ~160k English news, 15M+ impressions, 1M users (MIND-small: 50k); Microsoft Research License. Exposures follow the production policy, so the claim becomes "agreement with real logged behaviour."
 
-**KuaiRand arm study.** Five arms (Random, Pop, BPR-MF, LightGCN, SASRec) train on 4/08–4/21 standard logs only and rank the 7,583-item random pool, so each top-20 (5 pages × 4) can match random events. **Real value:** replay `is_click` rate on random events whose item is in the user's arm top-20. **Simulated value:** mean calibrated P(click) over that top-20, 500 sampled test users. **Non-LLM baselines:** offline Recall@20 / NDCG@20 on held-out standard logs; a logistic click model (user category histogram + item popularity, fitted on calibration users, geometric exit rule). No published LLM-simulator baseline on KuaiRand is known; KuaiSim (NeurIPS 2023), a non-LLM simulator on KuaiRand, is related work only.
+**KuaiRand arm study.** Five arms (Random, Pop, BPR-MF, LightGCN, SASRec) train on 4/08–4/21 standard logs only and rank the 7,583-item random pool, so each top-20 (5 pages × 4) can match random events. **Real value:** replay `is_click` rate on random events whose item is in the user's arm top-20. **Simulated value:** mean calibrated P(click) over that top-20, 500 sampled test users. **Non-LLM baselines:** offline Recall@20 / NDCG@20 on held-out standard logs; a logistic click model (user category histogram + item popularity, fitted on calibration users, geometric exit rule). Rejected: a per-rank position-based (examination-hypothesis) click model, since KuaiRand logs record no feed position and the replay target ignores rank; the exit rule already discounts later pages. No published LLM-simulator baseline on KuaiRand is known; KuaiSim (NeurIPS 2023), a non-LLM simulator on KuaiRand, is related work only.
 
 ### 5.3 Other measurements and data
 
 - **RecBole offline metrics:** Recall@20 / NDCG@20 per arm, both datasets, user-level bootstrap CIs; RecBole's own ML-1M runs sanity-check the arm code.
 - **Optional LightGCN reproduction** (S1, overnight): LightGCN-PyTorch reports Gowalla Recall@20 0.1824 / NDCG@20 0.1547 (3 layers, seed 2020, 1,000 epochs). Matching within ±0.005, then running RecBole's LightGCN on that split, checks graph-CF code only.
-- **Port delta (S1).** `gpt-3.5-turbo` shuts down on 2026-10-23 and Agent4Rec's 2023 snapshots (`-0301`, `-0613`) were retired on 2024-09-13, so the published run cannot be repeated. Instead `a4r-orig` and the port call one local Qwen3.5-4B endpoint (200 users at 1:9; same users, items, seeds): F1(port) − F1(original), paired bootstrap CI. If the original cannot take a local base URL, compare rendered prompts and parsed decisions on 50 users.
-- **Optional API reference:** a current low-cost OpenAI model (e.g. `gpt-5.6-terra`, the replacement the deprecations page lists), 200 users × 1:9, port only, labelled "reference, not a reproduction"; cost measured and capped at $5.
+- **Port delta (S1).** As of 2026-10-22, OpenAI's deprecations page lists the last `gpt-3.5-turbo` snapshot (`-0125`) for shutdown on 2026-10-23, and Agent4Rec's 2023 snapshots (`-0301`, `-0613`) were retired on 2024-09-13, so the published run cannot be repeated. Instead `a4r-orig` and the port call one local Qwen3.5-4B endpoint (200 users at 1:9; same users, items, seeds): F1(port) − F1(original), paired bootstrap CI. If the original cannot take a local base URL, compare rendered prompts and parsed decisions on 50 users.
+- **Optional API reference:** a current OpenAI model (e.g. `gpt-5.6-terra`, the replacement the deprecations page lists; S0 checks its price against the cap), 200 users × 1:9, port only, labelled "reference, not a reproduction"; cost measured and capped at $5.
 - **Optional, gated: TAU-USI** (495 annotated human τ-bench conversations, 165 tasks: 50 airline, 115 retail; CC BY-NC 4.0, terms prohibit LLM training). Evaluation only: outcome expected calibration error (ECE) and evaluative mean absolute error (MAE) of the τ²-bench user simulator in 05 BlackBox and 06 Ctrl-Z (local Qwen3.5 via LiteLLM). No official scoring code found.
 - **LoRA data:** LoRA-train users, M1-masked inputs; targets are real watch (interacted vs. not) and rating tokens on held-out items. Distractors are non-interacted, not observed skips (stated on the model card); KuaiRand's observed skips allow a cleaner variant.
 - **Demo:** 4–8 synthetic users (one per slot) browse, rate and exit a MovieLens feed live, beside a 300-user run replay and the publish/refuse gate panel.
@@ -308,7 +308,7 @@ Each claim (§1) is scored against its named baselines. The simulated A/B also r
 | **S2** | 9–10 | 7 arms + offline metrics; MovieLens A/B with CRN, 1 seed; KuaiRand arms, click model, arm study, item-level G6, replay; Kendall τ |
 | **S3** | 11–12 | Post-hoc calibration, then LoRA; G1–G7 in CI; before/after table with rating-model floor; uncalibrated 9B probe; KuaiRand regression |
 | **S4** | 13–14 | Orchestrator hardening; analyst evaluation; model card, drift, dashboard; determinism re-run; second A/B seed if budget allows |
-| — | 15 | Interview sprint: résumé numbers, 2-minute demo, design and experimentation drills |
+| — | 15 | Interview sprint: résumé numbers, 2-minute demo, design and experimentation drills, write-up (§14) |
 
 ## 11. Risks & Mitigations
 
@@ -323,7 +323,7 @@ Each claim (§1) is scored against its named baselines. The simulated A/B also r
 | LoRA learns ratings, not behaviour | M1-masked inputs; rating-model floor; Tier 2 on unseen behaviours (§7.6) |
 | LoRA does not fit or kernels missing | 0.8B student; Colab fp16; Qwen3-1.7B fallback |
 | Chinese captions, English prompts | Bilingual persona summaries; per-segment fidelity; MIND cross-check |
-| Anchor model retired (`gpt-3.5-turbo`, 2026-10-23) | Port delta on a local endpoint (§5.3); "different harness" label |
+| Anchor model retired (Agent4Rec's `-0301`/`-0613` snapshots on 2024-09-13; the last `gpt-3.5-turbo` snapshot's shutdown listed for 2026-10-23 as of 2026-10-22) | Port delta on a local endpoint (§5.3); "different harness" label |
 | Agent4Rec code rot; TAU-USI terms | Port logic, not environment (`a4r-orig` only for the delta); TAU-USI evaluation-only |
 | "Generative agents are not tool agents" | The analyst's tool loop, refusal rules and planted-fault evaluation are the agentic core |
 
@@ -352,11 +352,13 @@ These bullets go under EXPERIENCE **only in an entry naming a real organization 
 - **ML system design and experimentation:** offline vs. online evaluation, exposure bias, metric gaming; paired designs, MDE, multiple testing, replay/IPS, non-inferiority, with the project's own numbers.
 - **LLM / agent engineering and ML infra:** structured outputs, persona memory, a tool-using analyst with hard preconditions, logprob calibration, behaviour LoRA; slot pinning, prefix caching, KV and recurrent-state arithmetic on 6 GB, batching nondeterminism.
 - **Coding and behavioral:** bootstrap, Kendall τ, replay and power code; freezing thresholds before test data; refusing a readout under pressure.
+- **Drills** (paraphrased themes from public agent-engineering interview reports): *"How do you know a simulated user is realistic enough to trust?"* → §5.2, §7.5; *"Calibrate a model's probabilities against real user behaviour before you trust them."* → §7.6; *"Offline metrics and the online test disagree: which do you trust, and how would you check?"* → §1, §5.2, §9 (Kendall τ vs. offline Recall@20); *"Design an eval that doesn't fool you when every metric looks green."* → §7.7.
+- **Write-up:** the interview-sprint write-up (§10) is one post under the mentee's own byline, working title *"A/B tests on people who don't exist, and the gate that says when to stop trusting them"*: hook, context, the work (failure before fix: like-rate inflation before calibration (G3) and a refused readout, then calibration, §7.5–§7.7), what I'd do differently (the pre-declared null or fallback: KuaiRand τ "untestable at this power", §9; the calibration null if the §9 calibration rule fails; or the achieved MDE once the §8 cut order binds), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
 - Agent4Rec: https://arxiv.org/html/2310.10108v3 · https://github.com/LehengTHU/Agent4Rec
-- OpenAI model deprecations (gpt-3.5-turbo shutdown 2026-10-23): https://developers.openai.com/api/docs/deprecations
+- OpenAI model deprecations (gpt-3.5-turbo-0125 shutdown 2026-10-23, replacement gpt-5.6-terra; checked 2026-10-22): https://developers.openai.com/api/docs/deprecations
 - Sim2Real: https://arxiv.org/abs/2603.11245 · TAU-USI: https://huggingface.co/datasets/cmu-lti/tau-usi
 - MovieLens memorization: https://arxiv.org/abs/2505.10212
 - KuaiRand: https://kuairand.com/ · https://github.com/chongminggao/KuaiRand

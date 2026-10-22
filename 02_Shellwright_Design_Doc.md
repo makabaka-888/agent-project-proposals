@@ -97,6 +97,7 @@ Qwen3.5 small models are Apache-2.0, think by default, and are hybrid: three Gat
 | **Terminal-Bench 2.1** | 89 tasks (2.0 with 28 fixed) | 9B endpoints; P4 finals; 3 attempts, exclusions published | TBLite runs 2.6–8.0× faster than TB2 (card) |
 | **Dev slice** | 30 stratified `allenai/TMax-15K` tasks (S0a), disjoint from training and held-out data | Debugging, ACI thresholds; **never carries a claim** | Overnight-sized |
 | **Held-out ID set** | 300 converted TMax-15K tasks outside all training pools | Claim 3 primary test, 1 attempt per arm | Converted in S2 (§5.3) |
+| **data-eng-bench** (optional; Apache-2.0) | 103 dbt tasks; pytest verifiers check the materialized tables | Stretch transfer of the frozen ACI (P4); exploratory, **never carries a claim** | DuckDB variant hermetic (~489 MB, Git LFS; no cloud-warehouse account); Harbor ≥ 0.21.0 with `--allow-agent-host` (reference solutions are public); `dbt-fix-timezone-sales` advisory. **S0 floor check** after the gate's timing run (§8.3): 10 frozen-seed draws from its balanced `fast-30` list, 1 attempt, 4B under endpoint A (9B too if R9 fits); dropped unless the 4B solves ≥ 1 |
 
 TBLite and TB2.1 are touched only by configs frozen in a tagged commit before the first claim run; all tuning uses the dev slice.
 
@@ -212,6 +213,17 @@ Parquet rows per turn (run hash, task, attempt, prompt/completion/cached tokens,
 | `truncation_loss` | a failing test quotes a string only in a dropped output region |
 | `wrong_solution` | everything else |
 
+Trajectory flags (non-exclusive; they never change the label or the §1 test) mark the gate's residual and failure classes from vendor posts on coding and data agents (§15). Keystrokes parse as in §7.6 step 1; thresholds are fixed on the dev slice.
+
+| Flag | Rule |
+|---|---|
+| `silent_wrong` | accepted `submit` whose last post-mutation `run` exited 0 and executed a mutated file or a test (gate arms: `observed` matched), yet reward 0: passes superficially |
+| `redundant_explore` | ≥ 3 byte-identical read-only actions (`view`, or `run` of `ls`/`cat`/`grep`/`find`), no mutation between, first result still in context |
+| `rediscovery` | a read-only action repeats one whose output left the context (compaction, §7.3, or summarization) and `notes` lacks: re-learning within an episode, analogue of the cross-session kind (ArcticMem, §15) |
+| `false_investigation` | after the first mutation, ≥ 5 consecutive mutation-free turns only on paths outside the oracle's `docker diff` (recorded per task in S0a, or at conversion): probing correct behaviour; approximate, hand-audited |
+
+Flag shares sit beside the label shares (§9.1 ACI row, §9.2). Residuals: `rediscovery` of the notes rung (4; defined from rung 4 up and where endpoint B summarizes), `silent_wrong` of the gate (5).
+
 The mentee hand-labels 50 failures, the mentor 20 of those; rule-versus-human agreement is reported.
 
 ### 7.6 Distillation pipeline (Claim 3)
@@ -219,7 +231,7 @@ The trainer is shared with 03 Spelunker (§2); new here are cross-harness trace 
 
 1. **Collect** verified successes. Terminus-2 keystroke batches ending in Enter become `run(cmd)`; traces with interactive keystrokes (`C-c`, editors) are dropped, yield reported. Self-RFT yield = tasks attempted × the 9B's pool pass rate, measured the first night; below a projected 500 successes, arm (d) is dropped and public traces carry Claim 3.
 2. **Segment** each assistant turn under the **`student` profile** (also used to evaluate base and students): §7.3 context manager, window = segment length (§8.1), notes ≤300 tokens, thinking off. If the fixed prompt (S0a) leaves under 1k tokens for turns at 2k, the 6 GB fleet trains at 4k on the 0.8B fallback.
-3. **Mask** loss to the assistant action. **Decontaminate:** drop traces whose task ID or any instruction 13-gram matches TBLite, TB2.1, the dev slice or the ID set; MinHash near-duplicate filter.
+3. **Mask** loss to the assistant action. **Decontaminate:** drop traces whose task ID or any instruction 13-gram matches TBLite, TB2.1, the dev slice, the ID set or data-eng-bench; MinHash near-duplicate filter.
 4. **Train** Unsloth bf16 LoRA on Qwen3.5-2B with gradient checkpointing (`train` profile, §8.1); each arm fits one night (≤10 h), sized in S3's first hour from peak load/train/merge memory. **Ship:** merge, export GGUF Q4_K_M, evaluate in the same runner.
 
 **Arms**, matched on supervised (action) tokens: **(a)** untrained 2B base; **(b)** public traces (OpenThoughts-Agent-SFT, TMax-SFT), actions converted to our tools, observations and history in **native rendering**, left-truncated; **(c)** the same examples **re-rendered through our shaper and context manager**; **(d)** (c) with part of the public examples replaced by self-RFT 9B traces. (b) vs (c) isolates view parity; (c) vs (d), trace source.
@@ -328,6 +340,7 @@ n is fixed by the benchmark (~100 TBLite tasks, fewer after exclusions); attempt
 | P3 | Student arms (a)–(d), held-out ID set | 4×300×1 = 1,200 | R2 |
 | P3 | 2B base and best ID arm on TBLite | 2×100×3 = 600 | R2 |
 | P4 | 9B TBLite endpoints; leave-one-out; 4B under `student`; TB2.1 finals for ACI and student | 2×100×3 + 3×100×3 + 1×100×3 + 3×89×3 ≈ 2,600 | mixed |
+| P4 | data-eng-bench transfer, 4B rung 0 vs rung 5 (only if the §5.1 floor check passed) | 2×103×3 = 618 | R4-A, re-priced from the pilot |
 
 P0–P3 are committed (~7,300 episodes + N), P1b subject to the 9B rule; P4 runs only if measured rates allow. At a reference 3.5 effective minutes, the laptop-GPU rows (R4 and R2, ~6,400 episodes) need ~370 h against a ~315 h laptop budget. Pre-registered resolution: the ladder shrinks to rungs 0, 2, 5 if the factorial runs or the §9.3 shrink rule fires (−900 episodes; ~320 h with the factorial); otherwise the full ladder runs (~270 h without it). The gate prices R4-B, R9 and TB2.1 rows (no reference rate). The optional API arm runs the full ACI on the dev slice under the $20 cap, labelled exploratory.
 
@@ -346,7 +359,7 @@ P0–P3 are committed (~7,300 episodes + N), P1b subject to the 9B rule; P4 runs
 | **S1** | 5–8 | Knob registry; null-patch checks; 4B endpoint B; 9B TB2.1 endpoints overnight on `split`; factorial if triggered; **week-6 demo: one model, three scores, how much of the gap survives locally** |
 | **S2** | 9–10 | ACI behind flags, thresholds frozen in a tagged config; ladder; 9B in the full ACI; failure dashboards; cost table. Overnight: TMax-15K → Harbor conversion (self-RFT pool, ID set) and 9B trace generation, interleaved with the ladder (parallel if both fit the WSL cap) |
 | **S3** | 11–12 | Segmentation, decontamination; `train` memory check; LoRA arms (b)–(d); student eval on ID set and TBLite |
-| **S4** | 13–14 | P4 as budget allows; TB2.1 final; **"terminal specialist in 1.3 GB" demo on the Mac**; write-up |
+| **S4** | 13–14 | P4 as budget allows; TB2.1 final; **"terminal specialist in 1.3 GB" demo on the Mac**; write-up (§14) |
 | — | 15 | Interview sprint: the 11-point story, the ladder, the gap-closed number |
 
 ## 11. Risks & Mitigations
@@ -360,7 +373,7 @@ P0–P3 are committed (~7,300 episodes + N), P1b subject to the 9B rule; P4 runs
 | Reproduction misses the 31.8 band | Diagnostics run regardless, then a config diff against `Vanillux2Agent`; miss reported. Above 15 exclusions: "inconclusive", not "passed" |
 | 2B LoRA does not fit 6 GB at 2k | 0.8B student; Qwen3-1.7B QLoRA if the Qwen3.5 stack breaks; optional free Colab/Kaggle GPU for a 4B arm |
 | Public traces leak eval tasks or map poorly to our tools; too few self-RFT traces | Decontamination with published overlap counts; conversion yield reported; arm (d) adds self-RFT traces, dropped below a projected 500 (§7.6) |
-| Prior-art overlap | Our contribution is knob-level attribution and the view-parity test, not the ACI idea (SWE-agent) or the generic per-step recipe (shared with 03 Spelunker) |
+| Prior-art overlap | Our contribution is knob-level attribution and the view-parity test, not the ACI idea (SWE-agent), model-fixed harness studies (arXiv 2608.26218, §15) or the generic per-step recipe (shared with 03 Spelunker) |
 
 ## 12. Résumé Bullets (experience voice; numbers filled in as sprints land)
 
@@ -389,6 +402,8 @@ List these under experience **only with a real organization and engagement**: (1
 - **Training:** cross-harness trace conversion; view parity (arms b vs c); decontamination; LoRA memory arithmetic.
 - **Evaluation:** pass@k vs pass^k, paired bootstrap, MDE and power, Holm, A/A floors, fractional factorials and aliasing, reproducing single-lab numbers.
 - **Behavioral:** "a time results didn't reproduce" (S0b and the 11-point investigation).
+- **Drills** (paraphrased themes from public agent-engineering interview reports): *"pass@k vs pass^k: what each tells you, and which you ship on"* → §9.1, §1 claim 4; *"rebuild the state at each step from an agent's trajectory logs"* → §7.3 (4), §7.6 steps 1–2, §7.5; *"write the agent loop without a framework"* → §7.2–§7.3.
+- **Write-up:** the S4 write-up (§10) is one post under the mentee's own byline, working title *"Two harnesses, one 9B, an 11-point gap: what survives on a laptop"*: hook, context, the work (failure before fix: rung-0 labels, then the ladder, §9.2), what I'd do differently (the pre-declared null or fallback: §12 null wording, §8.3 9B rule), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
@@ -405,3 +420,5 @@ List these under experience **only with a real organization and engagement**: (1
 - llama.cpp issue #24714 — https://github.com/ggml-org/llama.cpp/issues/24714 ; `llama-server` flags (`--ctx-checkpoints`, `--checkpoint-min-step`, `--cache-ram`) — https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md
 - *SWE-agent* — https://arxiv.org/abs/2405.15793 ; mini-SWE-agent — https://github.com/SWE-agent/mini-swe-agent
 - *τ-bench* (pass^k) — https://arxiv.org/abs/2406.12045 ; Chen et al. (unbiased pass@k) — https://arxiv.org/abs/2107.03374
+- *Same Model, Different Harness* (Aug 2026; unverified, re-check in S0) — https://arxiv.org/abs/2608.26218
+- data-eng-bench — https://github.com/Snowflake-Labs/data-eng-bench (accessed 2026-10-22) ; vendor posts (vendor-reported; seen via search 2026-10-22, full text re-read in S0): data-eng-bench — https://www.snowflake.com/en/blog/engineering/data-eng-bench-data-engineering-agent-benchmark/ ; ArcticMem — https://www.snowflake.com/en/blog/engineering/arcticmem-persistent-memory-ai-agents/

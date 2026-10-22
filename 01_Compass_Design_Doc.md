@@ -58,7 +58,7 @@ Claims 1, 2 and 4 carry a pre-registered minimum detectable effect (MDE, §9); c
 | **DiDi**: A/B testing | Experimentation | Paired seeds, cluster bootstrap, MDEs |
 | **Sina Weibo**: monitoring with alerting | Metrics | Latency, abstain-rate and ECE dashboards |
 
-**Not prior experience:** Enclave, an unexecuted earlier mentor proposal, fine-tunes Qwen3-Reranker-0.6B. If it finishes first, its training code is reused for PRM B; until then PRM B is new work.
+**Not prior experience:** Enclave, an earlier mentor proposal, is a stalled Sprint-0 scaffold (5 commits, 2026-07-30 to 2026-10-09): config, database, encoder wrappers and hybrid retrieval exist; ingest, ranking, answer, API and eval are empty stubs, and there is no training code. Its `Reranker.score` already reads P("yes") from the yes/no logits at the last position, PRM B's scoring form, so it can seed `prm-svc` after three changes: keep the action and assistant suffix when truncating (it right-truncates the whole prompt; §7.4 drops the oldest turn instead), compute last-position logits only, and load BF16 (it loads fp16 on CUDA, fp32 elsewhere). PRM B's training is new work.
 
 **Interview one-liner** (last sentence from the Mac result): *"At Changsheng I built a screen-then-rank funnel for stocks. Compass is the same funnel for an agent's next action: a 1.7B model generates candidates and a 0.6B critic trained on Monte-Carlo labels ranks them. On the same Mac at the same per-step latency, it beat an 8B by X points."* If claim 1 fails: *"…it did not beat the 8B, and I traced the gap to X."*
 
@@ -230,7 +230,7 @@ def run_episode(env, game_id, searcher, budget):
 \*Simulator-access arms: labelled so everywhere, never called deployable. If full ranking matches policy+PRM on ALFWorld, the gain is short-list ranking; TextCraft tests that with free-form arguments.
 
 ### 7.4 Process Reward Model
-- **Input:** instruction + goal + window + note as shared prefix, action as suffix. **A:** linear head on the last hidden state, no LM head. **B:** reranker format (query = state, document = action); P("yes") from the yes/no LM-head rows at the last position only (`logits_to_keep=1`, or two rows sliced from `lm_head`). Full-vocabulary logits over 1.5K tokens would add ~0.47 GB per sequence in BF16 (1,536 × 151,669 × 2 B); an S0 test asserts peak memory.
+- **Input:** instruction + goal + window + note as shared prefix, action as suffix. **A:** linear head on the last hidden state, no LM head. **B:** reranker format (query = state, document = action); P("yes") from the yes/no LM-head rows at the last position only (`logits_to_keep=1`, or two rows sliced from `lm_head`). An over-length input loses its oldest window turn, never the action or the assistant suffix; a unit test asserts it. Full-vocabulary logits over 1.5K tokens would add ~0.47 GB per sequence in BF16 (1,536 × 151,669 × 2 B); an S0 test asserts peak memory.
 - **Prefix-shared scoring:** one ~1.5K-token prefill, its KV cache expanded across N suffixes of ~20 tokens. A unit test against unshared scoring asserts |Δlogit| < 1e-2 and identical ranking (Spearman 1.0); exact equality only in fp32 on CPU, since BF16 kernels of different shapes round differently.
 - **Losses:** pointwise binary cross-entropy (BCE) on soft labels q̂ ∈ [0, 1]; pairwise RankNet on same-state pairs with q̂ᵢ > q̂ⱼ.
 - **Training:** LoRA rank 8 or 16, split by game id, early stopping on set-(b) pairwise accuracy; temperature scaling; ECE (10 bins); τ set on tuning episodes for a target abstention precision.
@@ -312,12 +312,16 @@ Ten times fewer tokens on a third-size model fits; ALFWorld does not. S0 through
 | Area | Metrics | Against |
 |---|---|---|
 | Claim 1 | Success (ALFWorld pooled + valid_unseen; TextCraft by depth), policy+PRM P50/P95, tokens/episode, infra-aborts, per platform | 8B greedy; 4B greedy (secondary) |
-| Claim 2 | Pairwise accuracy on set (c) (primary); AUROC (area under the receiver-operating-characteristic curve) and Spearman vs K=4 labels; BoN success at fixed N (tuning); scoring ms per runtime | Qwen3.5-9B judge (primary), Qwen3-8B judge, oracle |
+| Claim 2 | Pairwise accuracy on set (c) (primary); AUROC (area under the receiver-operating-characteristic curve) and Spearman vs K=4 labels; BoN success at fixed N (tuning); scoring ms per runtime; Brier and reliability per arm (secondary) | Qwen3.5-9B judge (primary), Qwen3-8B judge, oracle; letter readout (optional, below) |
 | Claim 3 | Success vs N/beam/lookahead vs tokens vs P95 (total latency for simulator arms); N*; chosen action's PRM score vs oracle MC value as N grows; ECE; selective success vs coverage | Majority, log-prob, PRM full ranking |
 | Claim 4; GRPO-lite | ALFWorld greedy success, no search; TextCraft greedy success (0.6B) by depth | Base model and success-only variant of each |
 | Labels, repro, portability | K=2 vs K=4 agreement; informative share; GiGPO reproduction (§10); both machines within seed noise | GiGPO 12.8% (valid_seen, T=0.4), 7B 31.2% |
 
 **Ablation ladder** (one change per rung, matched N): greedy → BoN + majority → + log-prob → + prompted judge → + PRM A pointwise → + reranker init (B) → + pairwise loss → + beam/lookahead (simulator-access) → + abstention → oracle ceiling (subset). Protocol B and full ranking run alongside; an ALFWorld-only PRM tested on TextCraft measures transfer.
+
+**Claim-2 calibration (declared secondary).** For every scored arm (PRM, judges; the letter readout if run), s is its logit (PRM A's head output; log-odds of P("yes") for PRM B and the judges; option log-prob for the readout) and P(i ≻ j) = σ((sᵢ − sⱼ)/T), with T fitted on set-(b) pairs, pooled and ALFWorld-only. Each arm reports Brier score and a 10-bin reliability diagram on set (c)'s informative pairs (pooled T); a **shift check** applies the ALFWorld-only T unchanged to TextCraft (c), with the ALFWorld-only transfer PRM. The judges therefore also score set (b): ~100 states × ≤4 candidates per judge, Mac, est. ≤ 2 h each. Uncorrected and labelled; the primary test, Holm family, MDE and §7.4's calibration are unchanged.
+
+**Optional claim-2 comparator (Tier 2, stretch; no training).** A multiple-choice option-letter readout (letter readout): untrained Qwen3-0.6B, PRM A's base, sees the state and the ≤4 distinct candidates as options A–D; a candidate's score is its option letter's log-probability at the first assistant token (thinking off), averaged over cyclic shifts so each candidate takes every letter once. Selection bias comes mainly from a prior over the letter tokens (Zheng et al., §15): with four options, reversed order alone leaves an (A+D) vs (B+C) offset, while shifts give every candidate the same letters. Large models are well calibrated on lettered options (Kadavath et al., §15); at 0.6B, to be measured. Unlike the log-prob baseline (the policy's sampling probability), it is a prompted judge at PRM size. Prompt and option format are fixed on set (b) and hashed into `prereg/` before set (c) is scored. Cost: ~300 states (sets (b)–(c)) × ≤4 shifts × one ~1.5K-token pass (≈1.8M prefill tokens), < 1 h on either machine (est.). Design: "How Jev Works" (§15).
 
 **Pre-registered statistics**
 
@@ -332,7 +336,7 @@ Ten times fewer tokens on a third-size model fits; ALFWorld does not. S0 through
 | Claim 3 | Descriptive; episode-bootstrap CIs, no MDE |
 | Pilot (S0) | 1.7B and 8B, 50 tuning games + 50 tuning tasks, 3 seeds → p_d, ρ (TextCraft depth-2 only: a lower-difficulty proxy). MDEs, endpoints, analysis script into `prereg/` before headline runs |
 | Underpowered | Seed-saturated floor 3.24·√(p_d·ρ/n) > 10 pts → endpoint pre-registered as underpowered, or claim narrowed before the run, never after |
-| CIs | Paired bootstrap over games (10K resamples); McNemar secondary. Uncorrected, labelled secondaries: vs Qwen3-4B, TextCraft by depth, valid_unseen alone |
+| CIs | Paired bootstrap over games (10K resamples); McNemar secondary. Uncorrected, labelled secondaries: vs Qwen3-4B, TextCraft by depth, valid_unseen alone, claim-2 pairwise Brier/reliability and shift check, letter readout |
 
 | MDE at p_d = 0.20 | n | ρ=1 (claim 4; claim-1 bound) | ρ=0.5, m=3 (claim 1, illustrative) |
 |---|---|---|---|
@@ -345,8 +349,8 @@ Ten times fewer tokens on a third-size model fits; ALFWorld does not. S0 through
 | Tier | Arms | Items × seeds | Machine |
 |---|---|---|---|
 | 1 | Compass frozen config, 8B and 4B greedy (claim 1); base and RFT 1.7B greedy (claim 4, ALFWorld 274) | Full test; Compass × 3 seeds; greedy × 1 if S0 finds repeat greedy runs identical on 20 games, else × 3 | Mac + WSL2; claim 4 WSL2 |
-| 1 | PRM vs Qwen3.5-9B judge (claim 2) | Set (c), no episodes | Mac |
-| 2 | Ablations, N sweep, beam, lookahead, protocol B, full ranking, judge BoN, transfer, GRPO-lite | Tuning × 1; test × 1 for reported rungs | Either |
+| 1 | PRM vs Qwen3.5-9B judge (claim 2) | Set (c), no episodes; judges also score set (b) for T | Mac |
+| 2 | Ablations, N sweep, beam, lookahead, protocol B, full ranking, judge BoN, transfer, letter readout (sets (b)–(c), no episodes), GRPO-lite | Tuning × 1; test × 1 for reported rungs | Either |
 | 3 | Oracle (subset ceiling) | 30 ALFWorld + 40 TextCraft test items × 1 | WSL2 |
 
 The oracle needs ≈ N × K × L̄ = 4 × 2 × 15 = 120 policy calls per step: ~126K calls for the subset (~3.5–12 h on WSL2, est.). If Tiers 1–2 project past 20 machine-nights, Tier 2 drops its test seed.
@@ -362,7 +366,7 @@ The oracle needs ≈ N × K × L̄ = 4 × 2 × 15 = 120 policy calls per step: ~
 | **S2** | 9–10 | 3 | PRM grid; frontier (fixed window) + over-optimization; calibration + abstention; beam, lookahead (Tier 2); oracle subset (Tier 3); TextCraft transfer | Grid winner and N* frozen by hash on tuning; beam, lookahead and oracle slip to S3 if S2 overruns |
 | **S3** | 11–12 | 2.5 | PRM-filtered RFT + success-only ablation; GRPO-lite if the S0 gate allows | Tuning gain before any test run |
 | **S4** | 13–14 | 2.5 | Tier-1 frozen-config headline runs (§9); controller service with budgets; dashboards; `bench.py`; optional WebShop | All `prereg/` endpoints reported |
-| — | 15 | 1 | Interview sprint: headline plot, two-minute walkthrough, mock design round | — |
+| — | 15 | 1 | Interview sprint: headline plot, two-minute walkthrough, mock design round; the write-up (§14) | — |
 
 **S0 reproduction.** Reproduce GiGPO's Qwen2.5-1.5B-Instruct ReAct 12.8% with verl-agent's default evaluation (its template, valid_seen, T=0.4, 50 steps, history 2).
 - **Primary:** 3 seeds × all 140 valid_seen games (n=420); valid_unseen is reported as our own number. Pass by two one-sided tests (TOST) for equivalence: ours within ±6 pts of 12.8%, about the 95% sampling half-width of a 128-environment reference (our 90% CI at n=420 is ≈ ±2.7 pts).
@@ -420,6 +424,8 @@ List these under EXPERIENCE only in an entry naming a **real organization and a 
 - **Experimentation**: MDE arithmetic, paired designs, intra-cluster correlation, Holm and intersection-union tests, honest nulls.
 - **Coding**: replay-from-reset wrapper, prefix-shared scorer, cluster bootstrap.
 - **Behavioural**: the pre-declared S0 latency fallback answers "a plan that did not survive the data".
+- **Drills** (paraphrased themes from public agent-engineering interview reports): *"Your critic outputs 0.9; does that mean 90%, and does it still after a shift?"* → §5.2, §7.4, §9; *"Compare a small model plus search with a bigger model fairly."* → §7.7; *"Score per step or per outcome, and where do step labels come from without annotators?"* → §7.5; *"A change adds a few points of success; is it real?"* → §9.
+- **Write-up:** one post under the mentee's own byline (session 15, §10), working title *"A 0.6B critic that knows when it doesn't know: search, calibration and abstention on a laptop"*: hook, context, the work (the headline equal-latency plot, §1 claim 1; failure before fix: the over-optimization point, then the N* cap and abstain-and-ask, §1 claim 3, §7.7), what I'd do differently (the pre-declared null or fallback: the §8 S0 latency fallback, or a claim reported not supported, §9), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
@@ -435,6 +441,10 @@ List these under EXPERIENCE only in an entry naming a **real organization and a 
 - Math-Shepherd: https://arxiv.org/abs/2312.08935
 - Snell et al., test-time compute: https://arxiv.org/abs/2408.03314
 - Gao et al., reward model overoptimization: https://arxiv.org/abs/2210.10760
+- Guo et al., temperature scaling (ICML 2017): https://arxiv.org/abs/1706.04599
+- Zheng et al., "Large Language Models Are Not Robust Multiple Choice Selectors" (ICLR 2024; option-letter token prior): https://arxiv.org/abs/2309.03882
+- Kadavath et al., "Language Models (Mostly) Know What They Know" (calibration on lettered options): https://arxiv.org/abs/2207.05221
+- Option-letter log-prob readout + temperature scaling as the baseline a decision model must beat ("How Jev Works", 2026-10-10; link not live-checked 2026-10-22, re-check in S0): https://flurrylab.medium.com/how-jev-works-a-decision-model-that-answers-in-probabilities-not-words-2ef6b7b639e8
 - Qwen3 cards: https://huggingface.co/Qwen/Qwen3-1.7B · https://huggingface.co/Qwen/Qwen3-0.6B · https://huggingface.co/Qwen/Qwen3-4B · https://huggingface.co/Qwen/Qwen3-8B-GGUF · https://huggingface.co/Qwen/Qwen3-1.7B-GGUF (Q8_0 only) · https://huggingface.co/unsloth/Qwen3-1.7B-GGUF (size reference) · https://huggingface.co/Qwen/Qwen3-Reranker-0.6B
 - Qwen3.5-9B: https://huggingface.co/Qwen/Qwen3.5-9B
 - Unsloth Qwen3.5 guide: https://unsloth.ai/docs/models/qwen3.5/fine-tune

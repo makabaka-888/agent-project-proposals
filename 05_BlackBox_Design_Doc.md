@@ -41,7 +41,7 @@ Agents fail inside long, stochastic trajectories. After a prompt edit, a model s
 | Gating harness-code edits (BlackBox gates model, quantization and prompt changes; both calibrate on A/A, identical-arm, runs) | 07 HarnessForge |
 | Batch-invariant kernels (nondeterminism is measured, not fixed); hosted tracing; UI beyond Phoenix + static report; leaderboard submissions | — |
 
-Siblings: 02 and 04 export traces as cassettes; 06 Ctrl-Z's episodes use them, and its shadow-world snapshots share the BFCL/τ² state adapter (§7.3).
+Siblings: 02 and 04 export traces as cassettes; 06 Ctrl-Z's episodes use them, and its shadow-world snapshots share the BFCL/τ² state adapter (§7.3). 09 memtidy records its agent runs as cassettes; its A/A floor uses the §7.9 power method.
 
 ## 3. Alignment With Prior Experience
 
@@ -133,7 +133,7 @@ On algorithm-generated logs random beats the GPT-4o all-at-once judge on step-le
 
 ### 5.4 Project-built data
 - **Fault-injected BFCL sets U and V** (§7.7), released with the generator.
-- **60 natural failures** (100 stretch) from Qwen3.5-4B on BFCL and τ² airline (τ² only if τ² forks survive week 8). A written rubric labels the last recoverable step and the earliest decisive error (§7.4); forks never produce labels. 40 are double-labelled by a peer or the mentor (~1.5 h in S3) for Cohen's κ with its 95% interval.
+- **60 natural failures** (100 stretch) from Qwen3.5-4B on BFCL and τ² airline (τ² only if τ² forks survive week 8). A written rubric labels the last recoverable step and the earliest decisive error (§7.4), plus failure-class tags (§7.7); forks never produce labels. 40 are double-labelled by a peer or the mentor (~1.5 h in S3) for Cohen's κ with its 95% interval.
 
 ## 6. Architecture
 
@@ -176,6 +176,7 @@ On algorithm-generated logs random beats the GPT-4o all-at-once judge on step-le
 - **Key**: sha256 of the canonical request (model hash, messages, tools, sampling, seed, server flags). Sorted keys and normalized numbers prevent `25` vs `25.0` divergence, the int-vs-float bug τ²-bench v1.0.1 fixed in its banking_knowledge domain (#397).
 - **Index**: SQLite (run, step, span, parent, role, key, snapshot hash, outcome); content-deduplicated blobs.
 - **Modes**: *pure* (model and tools from cassette; viewing, diffing); *verify-tools* (model from cassette, tools live, final state hash asserted; CI). *Strict* applies to both: an unmatched request fails with a field-level diff, VCR-style.
+- **Replay tiers**, by what is redone: *observation* renders stored spans (Phoenix, report); *scoring* re-scores stored spans and §7.3 snapshots with a new checker, rubric or judge (all of Who&When; a checker costs seconds, a §9 judge 9B tokens), so a scorer-only change needs no harness run; *execution* re-runs harness code on recorded responses (*pure*, then *verify-tools*), the only tier that catches R0.
 - **No look-ahead**: a reader opened at fork step *k* refuses entries with step ≥ *k*.
 
 ### 7.3 Environment snapshots
@@ -224,9 +225,20 @@ On algorithm-generated logs random beats the GPT-4o all-at-once judge on step-le
 - **Unit: the entry** (reruns of one entry are not independent). A clean cell reads "0 of 50 entries diverged, 95% upper bound 6%" (3/n).
 
 ### 7.7 Fault-injection generator
-- From passing runs, inject one fault at step *k*: corrupted argument, wrong tool, dropped state-changing call, premature end of turn, or an environment fault (a tool errors once).
+- From passing runs, inject one fault at step *k*: corrupted argument, wrong tool, dropped state-changing call, premature end of turn, or an environment fault (a tool errors once, or silently returns a corrupted result).
 - **Set U (headline)**: every injection whose run fails, labelled *k\** = *k* by the injector alone, no live filter, until ≥ 150 cases. Recovered injections are not failures; recovery rate per fault type is reported. Label noise (a later natural error causes the failure) hits forks and judges alike.
 - **Set V (fidelity)**: 60 U cases whose faulted suffix fails ≥ 4/5 live and whose clean prefix from *k* succeeds ≥ 4/5. That is fork search's own statistic, so forks should be near ceiling: V reports sample cost and noise robustness only, never evidence that forks beat judges.
+
+**Failure classes** (reported for coding and data agents, §15) are non-exclusive tags, by rule, else by the §5.4 rubric (natural failures only); they never move *k\**. Per-class accuracy is descriptive (Wilson intervals, no test).
+
+| Class | Rule |
+|---|---|
+| Silent wrong output | a tool result the agent relied on was wrong without an error; injectable (the silent fault in U) |
+| Redundant exploration | ≥ 3 state-preserving calls off the ground-truth path in one turn, threshold fixed on S1 passing runs (vendor-reported: a data-native harness needed 1.5× fewer tool operations and 2.2× fewer steps than a generic one) |
+| False investigation | steps probing correct state as if it were the bug; rubric only |
+| Tool loop | one call (tool, canonical arguments) repeated with an unchanged state hash until the step cap (§7.5) |
+
+No rediscovery class (§15): it needs a result to leave the context, and BlackBox runs never compact or span sessions (§5.1); 02 (compaction) and 09 (memory files) own it.
 
 ### 7.8 Investigator agent — loop
 - **Observes** a span-tree digest (step, role, tool, argument, result and state-diff digests), the checker's failure message and fork results so far.
@@ -313,7 +325,7 @@ Replay fidelity (hash match, strict-miss rate, latency vs live rerun) is tested 
 
 **Ablation ladder**: random → all-at-once judge → + per-step state diffs → step-by-step judge → compute-matched judge (self-consistency over *m* votes, *m* set so judge tokens ≈ fork-search tokens per failure; 60 cases) → *resample* forks → + *stronger* → + *oracle* → investigator.
 
-**Reporting rules**: a compute ratio beside every judge-vs-fork gap; build, flags and GGUF hashes on every table; injected and natural failures apart; no comparison with an API model never run; nulls published.
+**Reporting rules**: success comes from the benchmark checker (backend state, BFCL's call-path subset, τ² airline's communication check; §5.1–5.2), never from the agent's final message or own report of success; the retail NL judge is reported apart; a compute ratio beside every judge-vs-fork gap; build, flags and GGUF hashes on every table; injected and natural failures apart; no comparison with an API model never run; nulls published.
 
 ## 10. Milestones (19 hours / 15 sessions)
 
@@ -324,7 +336,7 @@ Replay fidelity (hash match, strict-miss rate, latency vs live rerun) is tested 
 | **S2** | 8–10 | Snapshots + fidelity test (exit); fork engine; sets U and V; attribution v1 (§9 ladder through *oracle*, monotonicity sweep); power curve. Week-8 checkpoint (session 10): planned-tier cuts |
 | **S3** | 11–12 | 60 natural failures labelled, κ on 40 (§5.4); fork vs judge on them; planned tier if kept (Who&When, τ² forks and retail, investigator) |
 | **S4** | 13–14 | R1–R3 live, `blackbox ci live` + hosted gate, three-valued verdict, replay savings; docs, package, dataset and generator released |
-| — | 15 | Interview sprint |
+| — | 15 | Interview sprint; write-up (§14) |
 
 **S0 reproduction rule (pre-registered).** 2507 (FC) BFCL `multi_turn_base` 26.50%, official handler, local llama-server (Q8_0, Mac, prompt cache on), ≥ 3 runs. Pass: mean within 2 × the run-to-run standard deviation (SD) of 26.50%, floored at 2 pp; else document the gap. Not a binomial interval (±6.1 pp): leaderboard and local runs share the same 200 entries, so it would model absent task sampling and pass a ~5 pp handler or quantization bug.
 
@@ -369,6 +381,8 @@ Replay fidelity (hash match, strict-miss rate, latency vs live rerun) is tested 
 - **Applied LLM**: why temperature 0 is not deterministic; hybrid-attention KV budgets; quantization effects.
 - **Experimentation**: paired designs, McNemar vs. bootstrap, the pass^k estimator, power curves, "not significant" ≠ "no regression".
 - **Research / behavioural**: last recoverable vs. earliest decisive step; why a set filtered by your own method cannot test it; pre-registration; publishing nulls.
+- **Drills** (paraphrased themes from public agent-engineering interview reports): *"Your eval says your method wins: what could be fooling you?"* → §7.7, §7.9, §9; *"A model swap moves pass rate three points: real or noise?"* → §7.9, §9; *"Rebuild state history and recovery points from raw trajectory logs."* → §7.1, §7.3, §7.4; *"Calibrate an LLM judge against human labels."* → §5.4, §9.
+- **Write-up:** one post under the mentee's own byline (interview sprint, §10), working title *"Why temperature 0 isn't deterministic on my laptop, measured"*: hook, context, the work (failure before fix: a temperature-0 rerun that flips its outcome, then replay, forks and the power-sized gate), what I'd do differently (the pre-declared null or fallback: a clean grid's entry-level bound, §7.6; INCONCLUSIVE verdicts, §7.9), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
@@ -378,6 +392,7 @@ Replay fidelity (hash match, strict-miss rate, latency vs live rerun) is tested 
 - Prior art: https://arxiv.org/abs/2607.16200 · https://pypi.org/project/reeltime/ · https://pypi.org/project/vcrpy/ · https://docs.langchain.com/oss/python/langgraph/use-time-travel
 - Telemetry: https://github.com/open-telemetry/semantic-conventions-genai · https://arize.com/docs/phoenix/release-notes/05-2026/05-15-2026-otel-semconv-conversion
 - llama.cpp server: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md · https://github.com/ggml-org/llama.cpp/releases · Apple Silicon throughput: https://github.com/ggml-org/llama.cpp/discussions/4167
+- Failure classes (accessed 2026-10-22): vendor posts (vendor-reported) https://www.snowflake.com/en/blog/engineering/data-eng-bench-data-engineering-agent-benchmark/ · https://www.snowflake.com/en/blog/engineering/ai-agent-memory-experience-cards/ · https://www.snowflake.com/en/blog/engineering/arcticmem-persistent-memory-ai-agents/ · https://www.snowflake.com/webinars/snowflake-in-practice-cortex-code-coco-deep-dive-20261007/ (webinar abstract) · unbounded agent loops: https://arxiv.org/abs/2607.01641
 - Nondeterminism: https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/ · https://docs.vllm.ai/en/stable/features/batch_invariance/
 - Models: https://huggingface.co/Qwen/Qwen3.5-4B · https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507 · https://huggingface.co/unsloth (Qwen3.5-{2B,4B,9B}-GGUF, Qwen3-4B-Instruct-2507-GGUF) · https://artificialanalysis.ai/articles/qwen3-5-small-models
 - GitHub Actions billing: https://docs.github.com/en/billing/concepts/product-billing/github-actions · self-hosted runners: https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners
