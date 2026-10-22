@@ -56,7 +56,7 @@ Eight proposals, one per agent paradigm, all runnable on the stated fleet: a Win
 Coverage by paradigm:
 - RL/post-training plus test-time search: 01 Compass, which absorbs PocketGym's training loop as a bounded arm.
 - Coding/terminal: 02 Shellwright, which has the highest career score.
-- Deep-research/search agents: 03 Spelunker. It continues the Enclave (07) story without duplicating it.
+- Deep-research/search agents: 03 Spelunker. It continues the Enclave story (07 in the earlier recsys series) without duplicating it. Enclave stalled as a Sprint-0 scaffold, so Spelunker brings its own search adapter (03 §7.4).
 - GUI/vision: 04 Crosshair. It is the best CAS-patent fit and includes real LoRA.
 - Agent infra/evaluation: 05 BlackBox. It is the most feasible idea in the pool.
 - Agent safety: 06 Ctrl-Z. The four-idea security cluster is merged into one input-side vs outcome-side defense study. Customs supplies the gateway layer and Sparring supplies a bounded adaptive-attack arm.
@@ -81,7 +81,7 @@ Disqualified for unresolved feasibility fatal flaws:
 Shellwright's fatal flaw (8-16k training sequences on 8 GB) is fully resolved by per-turn 2-4k-token segments, so it stays. Fatal flaws from the other judges disqualified PocketPilot, Glitchhound, LabRat, TradingPit and MuscleMemory, or their fixes were too heavy.
 
 Ordering:
-- Clusters were deduplicated: one security project, one ALFWorld project, and only BlackBox and Ctrl-Z share BFCL/tau2/AgentDojo harnesses.
+- Clusters were deduplicated: one security project, one ALFWorld project, and only BlackBox and Ctrl-Z share the BFCL/tau2 harnesses (AgentDojo is Ctrl-Z's alone).
 - Recommended reading order starts with the recsys-bridge training project (Compass). The flagship coding and research agents follow, then GUI, infra and safety, and the two wildest ideas come last.
 
 Rules applied to every brief:
