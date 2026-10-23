@@ -8,7 +8,7 @@
 | Target duration | ~10–12 weeks (19 mentoring hours / 15 sessions + independent work) |
 | Platforms | **Windows 11 laptop** (16 GB RAM, RTX 3060-class, **6 GB VRAM assumed**, as the Laptop GPU ships; 8 GB only if confirmed): all scored runs and training. **Apple Silicon Mac** (16 GB unified, no CUDA): development, tests, demo. One repository. |
 | Deployment | 100% local: no rented servers, paid GPU cloud or inference API in the agent loop. A commercial API serves only as the judge's reference (est. < $15 worst case); free Colab/Kaggle GPUs are optional. |
-| Core stack | Qwen3.5-9B / 4B (GGUF, llama.cpp `llama-server`) · Qwen3-Embedding-0.6B · Qwen3-Reranker-0.6B · Enclave (pinned) · Pyserini BM25 · Postgres + pgvector · Unsloth · MLflow |
+| Core stack | Qwen3.5-9B / 4B (GGUF, llama.cpp `llama-server`) · Qwen3-Embedding-0.6B · Qwen3-Reranker-0.6B · Spelunker search adapter (Pyserini BM25 + flat dense index) · Postgres + pgvector (memory) · Unsloth · MLflow · Enclave pieces optional (pinned commit) |
 
 **Terms.** **ACM**: Agentic Context Management (Li et al., July 2026), the closest prior work. **CM@16k**: Spelunker's context manager (CM) at a 16k-token budget. **ReAct**: the reason-and-act loop that appends each tool result to the prompt. **GGUF**: llama.cpp's model file format (quantized or bf16). **RFT**: rejection-sampling fine-tuning. **κ**: Cohen's kappa. **MDE**: minimum detectable effect. **RRF**: reciprocal rank fusion. **HNSW**: pgvector's approximate graph index. **FTS**: Postgres full-text search.
 
@@ -42,7 +42,7 @@ Deep-research agents have two problems. The live web changes, so evaluations can
 - A calibrated local judge beside exact match; one published number reproduced in S0.
 
 ### Non-Goals
-- Building a retrieval engine: Enclave (07 in the earlier recsys/search series) is pinned, code unchanged, or replaced by a thin adapter (§7.4).
+- Building or finishing a retrieval engine: Spelunker owns a thin search adapter; Enclave (07 in the earlier recsys/search series) did not ship, and its scaffold is reused only piecewise, after fixes (§7.4).
 - Live-web tools at run time; leaderboard chasing against frontier models.
 - Multi-agent orchestration; full reinforcement learning (GRPO is a stretch, §7.6).
 - Redistributing the corpus, decrypted questions or plaintext trajectories.
@@ -52,19 +52,20 @@ Deep-research agents have two problems. The live web changes, so evaluations can
 - **05 BlackBox** owns cache-hit and seed-variance methodology and record/replay; Spelunker uses its metrics and cassettes.
 - **01 Compass** sidesteps the hybrid-cache hazard (llama.cpp #22384) with standard-attention Qwen3; Spelunker keeps Qwen3.5 and measures prefix reuse in S0 (§7.2).
 - **07 HarnessForge** could search the context-policy knobs (trigger, ledger cap) set here by hand.
+- **09 memtidy** pits a local agent's own grep loop against a noise filter and a SQLite FTS5 index on noisy local md files, and runs a no-agent retriever ladder (rg, FTS5, Qwen3-Embedding-0.6B, hybrid RRF) as a kill rule for vectors on md; Spelunker keeps retriever choice inside an agent on web corpora and memory vs long context (Claims 1–3, `note`/`recall`).
 
 ## 3. Alignment With Prior Experience
 
 | Prior experience | Spelunker module |
 |---|---|
 | **CAS**: patented cascaded binary-encoding image retrieval; Precision@K / latency / storage over 20+ configs | Retriever ablation and S0 reproduction, scored on answer accuracy |
-| **Enclave** (row only if it shipped): local hybrid retrieval, egress test | The `search` tool; the egress test becomes the Wi-Fi-off demo |
+| **Enclave** (did not ship: a Sprint-0 scaffold; row counts only once its `/v1/search`, BEIR table and continuous-integration egress job exist): RRF-in-SQL retrieval, egress socket guard | `recall`'s fusion SQL, contract fixtures (§7.4); the fixed guard in the smoke test |
 | **College Application Agent**: EBR (embedding-based retrieval) + FastAPI; LangGraph Writer–Critic | `verify`: clue-by-clue cited verdicts |
 | **Changsheng**: AutoML hyper-parameter agent; backtest gates | Budget sweep; gated student promotion |
 | **Sina Weibo**: ETL, metrics, monitoring | Per-query telemetry in MLflow |
 | **DiDi**: A/B testing | Paired designs, MDEs, bootstrap CIs |
 
-**Interview one-liner:** *"I put a research agent on a local retrieval stack that answers X% of BrowseComp-Plus test questions with the network off, inside a 16k-token budget on a 6 GB laptop GPU, measured what each thousand tokens and each retriever buys, and distilled it into a 2B model."* Lead with "I built a retrieval engine that runs with the network off" only if Enclave shipped.
+**Interview one-liner:** *"I put a research agent on a local retrieval stack that answers X% of BrowseComp-Plus test questions with the network off, inside a 16k-token budget on a 6 GB laptop GPU, measured what each thousand tokens and each retriever buys, and distilled it into a 2B model."* Enclave has not shipped, so do not lead with "I built a retrieval engine that runs with the network off" unless it ships (the §3 row's test).
 
 ## 4. Stack Choices — and Why
 
@@ -76,8 +77,8 @@ Deep-research agents have two problems. The live web changes, so evaluations can
 | Agent, 6 GB default | Qwen3.5-4B | GGUF Q4_K_M | 2.74 GB | 9B's layout; fits 6 GB with the reranker |
 | Student | Qwen3.5-2B | bf16 LoRA → GGUF Q4_K_M / Q8_0 | 1.28 / 2.01 GB | Teacher's tokenizer, template, layout; serves on the Mac |
 | Student fallback | Qwen3.5-0.8B | bf16 LoRA | measured | 3 GB LoRA vs 5 GB for the 2B (Unsloth) |
-| Query encoder | Qwen3-Embedding-0.6B (1024-d) | fp16 | ~1.2 GB | Matches a prebuilt index |
-| Reranker | Qwen3-Reranker-0.6B | fp16 | ~1.2 GB | Enclave's stage 2 |
+| Query encoder | Qwen3-Embedding-0.6B (1024-d) | fp32 on CPU (~2.4 GB RAM), fp16 on GPU | ~1.2 GB | Matches the prebuilt index |
+| Reranker | Qwen3-Reranker-0.6B | fp32 on CPU (~2.4 GB RAM), fp16 on GPU | ~1.2 GB | Rescores hybrid top-N (§7.4) |
 | 8B-index encoder | Qwen3-Embedding-8B-GGUF (4096-d) | Q4_K_M, CPU | 4.68 GB | fp16 (15.1 GB) does not fit; S0 parity-gated |
 | Cache fallback, 6 / 8 GB | Qwen3-4B / Qwen3-8B (standard attention) | GGUF Q4_K_M | 2.5 / 5.03 GB | Only if hybrid caching fails (§7.2) |
 | Local judge | Qwen3.5-9B | Q4_K_M, partial offload on 6 GB | 5.68 GB | Batch, offline |
@@ -94,8 +95,8 @@ Deep-research agents have two problems. The live web changes, so evaluations can
 | Prompting | Raw `/completion` + `cache_prompt`; Spelunker renders bytes | Qwen3.5's template keeps `<think>` only after the last real user turn, so an injected user turn (ledger instruction, loop warning) or whitespace change forces a re-prefill; `preserve_thinking` exists only in the Qwen3.6 template |
 | Agent framework | Plain Python state machine, no LangGraph | A framework that owns serialization hides the bytes the cache depends on |
 | Training | Unsloth bf16 LoRA | Unsloth advises against QLoRA (quantized LoRA) for Qwen3.5; needs `transformers` v5 |
-| BM25 | Pyserini, prebuilt index | Paper parity; Java 21, documented for Mac/Linux only, so a WSL2/Docker sidecar on Windows |
-| Storage / tracking | Postgres 16 + pgvector (Enclave's compose); MLflow + results table in git | Memory beside Enclave; regressions show in a diff |
+| Search | Own adapter, one tested contract (§7.4): Pyserini BM25 + flat dense, prebuilt indexes | Paper parity; Pyserini needs Java 21, documented for Mac/Linux only, so a WSL2/Docker sidecar on Windows |
+| Storage / tracking | Postgres 16 + pgvector (`pgvector/pgvector:pg16` compose, as in Enclave); MLflow + results table in git | `note`/`recall` memory and the HNSW diagnostic in one store; regressions show in a diff |
 
 ## 5. Benchmarks & Datasets
 
@@ -107,8 +108,8 @@ Deep-research agents have two problems. The live web changes, so evaluations can
 | Corpus | 100,195 docs; mean 5,179 words (~32k characters) |
 | Labels | Means of 6.1 evidence and 2.9 gold docs per query; TREC relevance files (qrels) |
 | Access | Queries/answers obfuscated (`Tevatron/browsecomp-plus`), decrypted locally by the repo script; corpus plain |
-| Prebuilt indexes | `Tevatron/browsecomp-plus-indexes`: BM25 and Qwen3-Embedding-0.6B / 4B / 8B; 5.25 GB; dense vectors cover each doc's first 4,096 tokens; no embedding job. Fits both machines; agent time is the cost (§8) |
-| Protocol | `search` top-5, 512 tokens each; gpt-4.1 judge (the repo script defaults to Qwen3-32B) |
+| Prebuilt indexes | `Tevatron/browsecomp-plus-indexes`: BM25 and Qwen3-Embedding-0.6B / 4B / 8B; 5.25 GB; one dense vector per document, covering its first 4,096 tokens; no embedding job. Fits both machines; agent time is the cost (§8) |
+| Protocol | `search` top-5 documents, each shown as its first 512 tokens (Qwen3-0.6B tokenizer); gpt-4.1 judge (the repo script defaults to Qwen3-32B) |
 
 **Splits** (fixed seed, stratified by evidence count): dev 100 for iteration; test 230 for claims, once per frozen config; train 500 for teacher trajectories only. ACM's released rollouts are unused: they may overlap this test split.
 
@@ -126,15 +127,15 @@ Deep-research agents have two problems. The live web changes, so evaluations can
 
 **Qwen3.5-4B and 2B: no published result.** In ACM's Appendix D, previous-generation Qwen3-4B-thinking collapses every rollout into two turns (2.0 turns, 1.2 searches, 3.4%; 9B: 19.4, 16.2, 57.3%), leaving context management nothing to do. Qwen3-32B above makes under one search per question; hence the floor gate (§1).
 
-**S0 external reproduction (pre-registered).** Encode the 830 decrypted questions with Qwen3-Embedding-0.6B via Enclave's query path, search the prebuilt index, score on evidence qrels: a deterministic, minutes-long check that decryption, query instruction and encoder match the paper.
+**S0 external reproduction (pre-registered).** Encode the 830 decrypted questions with Qwen3-Embedding-0.6B through the adapter (BrowseComp-Plus query prefix, EOS pooling, normalised), search the prebuilt index exactly, score on evidence qrels: a deterministic, minutes-long check that decryption, query instruction and encoder match the paper.
 - **Targets:** 0.6B nDCG@10 8.0 ± 0.5, Recall@100 26.5 ± 1.0; BM25 nDCG@10 1.6 ± 0.3. In S2 the same test gates the 8B row (Q4 encoder within 1.0 of 20.3, else "not run").
-- **HNSW depth:** `hnsw.ef_search` (default 40) caps returned rows, so Recall@100 needs `SET hnsw.ef_search = 200`; HNSW-vs-exact recall is reported (the paper used a flat index). If pinned Enclave cannot set it per query, Recall@100 uses the flat reference path and only nDCG@10 is gated through Enclave.
+- **HNSW depth:** the gates use the flat index, as the paper did. The pgvector HNSW diagnostic needs `SET hnsw.ef_search = 200` on the adapter's connection, since `ef_search` (default 40) caps returned rows; HNSW-vs-exact Recall@100 is reported, not gated. Enclave never raises it, so on an HNSW index scan its dense `LIMIT 100` returns at most ~40 rows.
 
 ### 5.2 Training data
 Once CM@16k freezes, the profile's agent (4B on `portable`, 9B on `accelerated`) samples the train split once per question; a second sample runs only if the first yields < 150 kept trajectories and budget allows. *Kept*: judge and exact match both correct, and every final citation is a document the trajectory opened. Yield (≤ teacher accuracy × trajectories sampled) is measured; kept trajectories become per-step examples (§7.6).
 
 ### 5.3 Demo data
-Ten hand-picked dev questions most people could not answer in an afternoon, recorded network-off and replayed at speed from 05 BlackBox-style cassettes (a live run takes minutes); each searches 100K web documents and ends in field notes with a document behind every fact. One short query runs live on the Mac (2B student), Wi-Fi off. An unscored run on Enclave's (or the adapter's) docs shows it is not tied to one benchmark.
+Ten hand-picked dev questions most people could not answer in an afternoon, recorded network-off and replayed at speed from 05 BlackBox-style cassettes (a live run takes minutes); each searches 100K web documents and ends in field notes with a document behind every fact. One short query runs live on the Mac (2B student), Wi-Fi off. A stretch, from S3 slack: an unscored run on a second public corpus loaded by the adapter (e.g. the PostgreSQL manual; BM25 index and 0.6B embeddings built on CPU) shows it is not tied to one benchmark.
 
 ## 6. Architecture
 
@@ -148,8 +149,9 @@ Ten hand-picked dev questions most people could not answer in an afternoon, reco
              |- llama-server :8080  Qwen3.5-9B/4B GGUF; q8_0 KV; /completion
              |                      cache_prompt; timings -> cache-hit metric
              `- tools
-                 search -> Enclave /v1/search (pinned) -> Postgres FTS + pgvector + reranker
-                        `-> reference: Pyserini BM25 sidecar; flat index (4B/8B vectors)
+                 search -> search adapter (§7.4): Pyserini BM25 sidecar + flat dense index
+                        |   -> RRF -> Qwen3-Reranker-0.6B (CPU on Windows); one tested contract
+                        `-> diagnostic only: pgvector HNSW, ef_search raised
                  open, find -> corpus store (doc_id -> tokenized pages)
                  note, recall -> Postgres `spelunker` schema (offloaded evidence + vectors)
                  verify -> <=3 searches; evidence appended; verdict = next turn
@@ -218,7 +220,7 @@ At 16k this holds with S = 2,500 (7,440 ≤ 7,520). If S0 measures more, L at 16
 1. Hold the triggering observation; append a fixed *"update the ledger"* instruction to the current prompt (a cache hit).
 2. Emit ledger vK+1: grammar-constrained JSON, ≤ L tokens, thinking off.
 3. **Validate:** each fact must cite a document seen in this trajectory, on a page containing one of its content words; failures are dropped and counted (*note-drop rate*).
-4. Embed offloaded tail outputs with Qwen3-Embedding-0.6B for `recall`.
+4. Index offloaded tail outputs (Qwen3-Embedding-0.6B vectors + Postgres FTS); `recall` = RRF over both, query terms joined by `or` (§7.4).
 5. Re-prefill `SYS` + `QUESTION` + vK+1 + kept tail + held observation (≤ T − G − O): the only full prefill, since thinking stays verbatim between compressions and the prompt is append-only.
 
 **Thresholds, not ACM's agent-triggered compression** (an ablation rung, §9.2), give predictable peak memory on 6 GB and countable cache breaks. At 16k a compression may come every one to three turns, each a counted re-prefill of ≤ ~7.5k tokens.
@@ -236,11 +238,15 @@ At 16k this holds with S = 2,500 (7,440 ≤ 7,520). If S0 measures more, L at 16
 ### 7.3 `verify`: the Critic, Repurposed
 Per call: ≤ 3 constraints (1 at 8k), one search each (`"<candidate> <constraint keywords>"`, k=3, 256-token snippets), appended as the observation, so bounded by O. The next turn gives a cited verdict per constraint (*satisfied / contradicted / unknown*) under a verdict-only grammar; a contradiction moves the candidate to `ruled_out`. No separate LLM call runs, so the single slot keeps its prefix and verify tokens count like any turn's. Reported: verification coverage; accuracy on verified vs unverified answers.
 
-### 7.4 Retrieval Through Enclave
-- **Pinned: code unchanged, configuration overridden.** Enclave's `portable` defaults (256-d Matryoshka embeddings, 256–320-token passages, conditional reranking on) do not fit this benchmark; Spelunker sets 1024 dims, 512-token passages, conditional reranking off, the BrowseComp-Plus query instruction and `hnsw.ef_search` ≥ max(100, rerank depth N). S0 parity runs under exactly these. A loader writes the prebuilt 0.6B vectors into Enclave's pgvector table.
-- **Modes:** `bm25` = Pyserini sidecar; `dense` = Enclave HNSW; `hybrid` = Enclave RRF over FTS + pgvector; `rerank` = hybrid top-N + Qwen3-Reranker-0.6B, N from a measured knee per profile, N ≤ `ef_search`. The reranker stays on one device across budgets (CPU on `portable`), so wall-clock is not confounded.
-- **Larger indexes:** pgvector HNSW caps at 2,000 dims (`vector`) or 4,000 (`halfvec`). The 4B vectors (2560-d) fit as `halfvec`; the 8B vectors (4096-d) use a flat reference index (100K × 4096 fp16 ≈ 0.8 GB, one matrix product per query).
-- **Without Enclave**, a thin adapter (Pyserini + flat index + reranker) serves the same contract.
+**Citation checks** (deterministic, from the trajectory log; diagnostics, not claims; strings match after NFKC, case-folding and whitespace collapse):
+- *Unsupported-claim rate*: unsupported ÷ checked items. Items are each number in a ledger fact (digit strings, decimal point kept, thousands separators removed), looked up on the cited `doc_id:page`, and each named entity in `answer.text` (a maximal run of capitalised or numeric tokens, leading stopword dropped; entities in `QUESTION` exempt), looked up in the text `open` or `find` returned. ReAct, with no ledger, counts answer entities only.
+- *Snippet-only evidence share*: ledger facts and `answer` cites whose document only ever appeared in `search` or `verify` results (snippet or stub), never through `open` or `find`.
+
+### 7.4 Retrieval Through a Search Adapter
+- **Adapter (primary, Spelunker-owned).** `bm25` = Pyserini's prebuilt index (sidecar); `dense` = exact search over the prebuilt 0.6B vectors, one per document, as in the paper; `hybrid` = RRF (k = 60) over BM25 and dense top-100; `rerank` = hybrid top-N rescored by Qwen3-Reranker-0.6B on each document's first 512 tokens, truncating the document, never the prompt suffix (Qwen's `process_inputs` recipe, §15), N from a measured knee per profile. Queries carry the BrowseComp-Plus prefix explicitly. The reranker stays on one device across budgets (CPU on `portable`), so wall-clock is not confounded. S0 parity runs under exactly this configuration.
+- **Contract, fixed in S0** (contract-first, as the earlier series' SearchCraft planned): `search(query, mode, k, s) → [{doc_id, title, score, passage}]`, best first, as a JSON schema (§7.1 renders it). `title` = the text's first line, else the URL's host + path (the corpus has no title field; re-checked in S0). s is counted with the paper's Qwen3-0.6B tokenizer for parity; O is re-measured in agent tokens in S0. The same contract tests run on every back-end: schema-valid, ≤ k unique hits, non-increasing scores; `passage` = the document's first s tokens, byte-identical on repeat calls (the prefix cache depends on it); on a fixture where the channels disagree, a document both find outranks single-channel ones, with fused scores Σ 1/(60 + rank); punctuation-only and empty queries never raise; no egress, run with networking off at the OS or container level (a Python socket guard misses the JVM and libpq). A back-end that fails one is not swapped in.
+- **Larger indexes, all flat:** fp16 ≈ 0.2 / 0.5 / 0.8 GB for the 0.6B / 4B / 8B vectors (1024 / 2560 / 4096-d), one matrix product per query. A pgvector HNSW row (0.6B) is a diagnostic only (§5.1); HNSW caps at 2,000 dims (`vector`) or 4,000 (`halfvec`).
+- **Enclave, optional reuse.** At commit `5a6c235` (2026-10-09) it is a Sprint-0 scaffold: config, db, encoder wrappers and one SQL statement fusing Postgres FTS and pgvector by RRF; ingest, rank, answer, API and eval are empty stubs, with no `/v1/search` and no chunker. Its same-named profiles differ from §8's. Its RRF SQL and tests (for `recall` and the contract fixture), encoder wrappers and egress socket guard are reusable after six fixes: a `vector(1024)` migration; `SET hnsw.ef_search` ≥ max(100, N); the query prefix passed explicitly; suffix-preserving reranker truncation; a per-document `UNIQUE(content_hash)` (global today); and an IP allow-list in the guard. Its lexical half, `ts_rank_cd` under `websearch_to_tsquery` (bare terms ANDed, hence `recall`'s `or`), is not BM25 and never stands in for `bm25`.
 
 ### 7.5 Judge
 - **Local judge:** Qwen3.5-9B with the paper's grading prompt (Appendix F), as a batch job; exact match and calibration error (from stated confidence, as in Table 1) always sit beside it.
@@ -272,7 +278,7 @@ Per call: ≤ 3 constraints (1 at 8k), one search each (`"<candidate> <constrain
 | Reranker / query encoder | CPU / CPU, at every budget | CPU / CPU | MPS (Metal) / MPS |
 | Owns | All scored runs | Scored runs + the 9B anchor | Development, tests, native Pyserini, demo |
 
-Usable VRAM (Windows reserves some for the display) is measured with `nvidia-smi` on day one; a profile within 0.5 GB of it moves a component to CPU. The 9B@64k anchor is inside that margin even with q4_0 KV, so it plans partial offload of a few layers (tok/s reported) or a 32k reference. Training never runs beside serving; artifacts cross machines as files.
+Usable VRAM (Windows reserves some for the display) is measured with `nvidia-smi` on day one; a profile within 0.5 GB of it moves a component to CPU. The 9B@64k anchor is inside that margin even with q4_0 KV, so it plans partial offload of a few layers (tok/s reported) or a 32k reference. System RAM (16 GB) also holds both fp32 encoders on CPU (~4.8 GB, both CUDA profiles), the flat index, the corpus store behind `open`/`find` (~3.2 GB of text if held in memory) and, on Windows, the WSL2/Docker VM with the Pyserini JVM and Postgres; S0 measures its peak. Training never runs beside serving; artifacts cross machines as files.
 
 **Week-2 go/no-go gate** (session 3: Windows, 4B, BM25, 20 dev queries, minimal ReAct loop with a naive 16k truncation stub; also the first floor read). **Go** if median ≤ 5 min/query, p90 ≤ 10 min and cache reuse ≥ 80%. **Otherwise, in order:** fix caching → lower the generation cap → no thinking on `note` turns → 4B primary on 8 GB, if confirmed → standard-attention fallback (only if caching is the cause) → one dev seed.
 
@@ -302,6 +308,7 @@ Total ~325 laptop-hours plus training; the week-12 buffer absorbs S4's overflow 
 |---|---|
 | Accuracy (every run) | Judge accuracy, exact match, calibration error vs the local anchor (published rows as context only) |
 | Telemetry (every run) | Per-call telemetry (§6); compressions, note-drop rate, cap and ceiling hit rates, calls over B |
+| Citations (every run) | Unsupported-claim rate, snippet-only evidence share (§7.3); diagnostics, no decision rule |
 | Serving | Cache-hit rate, prefill/decode tok/s, VRAM peak per profile |
 | Retrievers | Search calls (verify-internal apart), in-trajectory evidence recall (Table 1's Recall), rerank latency; vs BM25 at the same budget |
 | Distillation | Student ÷ teacher accuracy on the same GPU |
@@ -337,12 +344,12 @@ Runs per sprint: §8. Each test configuration runs, and is graded, as it freezes
 
 | Sprint | Sessions (weeks) | Deliverable |
 |---|---|---|
-| S0 | 1–3 (1–2) | Repo, Enclave config, corpus, decryption, indexes, Pyserini sidecar; minimal ReAct loop; **Table 2 reproduced**; `llama-server` pinned; reuse, VRAM, S tokens measured; LoRA probe; splits frozen; **week-2 gate** (session 3) |
+| S0 | 1–3 (1–2) | Repo, search adapter + contract tests, corpus, decryption, indexes, Pyserini sidecar; minimal ReAct loop; **Table 2 reproduced**; `llama-server` pinned; reuse, VRAM, S tokens measured; LoRA probe; splits frozen; **week-2 gate** (session 3) |
 | S1 | 4–7 (3–5) | Full loop + 7 tools; dev anchor; rerank-depth knee; closed-book; judge calibration; **floor gate and re-plan**; ReAct@64k-BM25 frozen and run on test. Week-5 demo: Wi-Fi-off ReAct trace with a cited answer |
 | S2 | 8–9 (6–7) | Best retriever frozen; **ReAct@64k-best on test**; 8B parity check; ledger, compression, `recall`, `verify` with the §7.1 invariant tests |
 | S3 | 10–11 (8–9) | Dev budget curve; **CM@16k frozen in week 8, run on test**; teacher sampling starts overnight. Demo: Wi-Fi-off run with field notes |
 | S4 | 12–14 (10–11) | Teacher sampling completes; **CM@64k on test**; 2B RFT in V_s; GGUF export; student on test; full-830 union if eligible; runbook; week 12 is the compute buffer |
-| — | 15 (12) | Interview sprint: replayed demo, budget-curve walk-through, cache measurements on a whiteboard (the bug and its fix only if one was found) |
+| — | 15 (12) | Interview sprint: replayed demo, budget-curve walk-through, cache measurements on a whiteboard (the bug and its fix only if one was found); the write-up (§14) |
 
 ## 11. Risks & Mitigations
 
@@ -361,7 +368,7 @@ Runs per sprint: §8. Each test configuration runs, and is graded, as it freezes
 - Built an **offline deep-research agent** over a frozen 100K-document corpus (BrowseComp-Plus), running Qwen3.5 via llama.cpp on a **6 GB laptop GPU** at **X% accuracy** (exact match X%, judge κ = X).
 - Designed a **budget-bounded context manager** (cited ledger, offloaded evidence, threshold compression, append-only prompt) within **X points** of a 64k-context agent at a **16k cap**, cutting prefill **X%**.
 - Measured **prefix-cache reuse on a hybrid Gated DeltaNet model** at **X%** per call (gate ≥ 80%) with byte-stable, append-only prompts. *Append "; diagnosed and fixed a re-prefill bug, raising reuse from X% to X%" only if a below-gate baseline was measured and a change raised it.*
-- Ran an **in-agent retriever ablation** (BM25, Qwen3-Embedding-0.6B, hybrid RRF, Qwen3-Reranker-0.6B): retrieval moved accuracy **X points**, after reproducing published nDCG@10 within **X**.
+- Ran an **in-agent retriever ablation** (BM25, Qwen3-Embedding-0.6B, hybrid RRF of BM25 + dense, Qwen3-Reranker-0.6B): retrieval moved accuracy **X points**, after reproducing published nDCG@10 within **X**.
 - **Distilled the agent into Qwen3.5-2B** via per-step rejection-sampling fine-tuning, recovering **X% of teacher accuracy** at **Xx** throughput.
 
 ### Placement Note (read before putting this under EXPERIENCE)
@@ -389,11 +396,13 @@ Never invent an employer or dates: North American employers verify employment, a
 - **Training:** rejection sampling, per-step distillation, loss masking, LoRA targets on non-standard layers, why not QLoRA.
 - **Experimentation:** paired designs, MDEs, non-inferiority margins, judge κ, contamination controls.
 - **Behavioral:** compute and floor gates, dropping LangGraph for byte-stable prompts, reporting failed claims.
+- **Drills** (practice prompts on common agent-engineering themes): *"Keep an agent's memory inside a fixed token budget, and show it never overflows."* → §7.1 invariants, §7.2; *"Your agent's prompt grows every turn: how do you bound it, and what does that cost in accuracy?"* → §7.2, §9.3 Claim 2; *"How do you check a local LLM judge before you trust its scores?"* → §7.5, §9.4.
+- **Write-up:** one post under the mentee's own byline (session 15, §10), working title *"What each thousand tokens and each retriever buys a research agent with the Wi-Fi off"*: hook, context, the work (failure before fix: ReAct@64k ceiling hits, then the ledger), what I'd do differently (the pre-declared null or fallback: "no difference detected at this n", §9.3, or "not testable on 6 GB", §8), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
 - BrowseComp-Plus (Chen et al., 2025): https://arxiv.org/abs/2508.06600
-- BrowseComp-Plus code and index recipe: https://github.com/texttron/BrowseComp-Plus · https://github.com/texttron/BrowseComp-Plus/blob/main/scripts_build_index/qwen3-embed.md
+- BrowseComp-Plus code, index recipe and snippet rule: https://github.com/texttron/BrowseComp-Plus · https://github.com/texttron/BrowseComp-Plus/blob/main/scripts_build_index/qwen3-embed.md · https://github.com/texttron/BrowseComp-Plus/blob/main/searcher/tools.py
 - BrowseComp (Wei et al., 2025): https://arxiv.org/abs/2504.12516
 - ACM (Li et al., 2026), including Appendix D (Qwen3-4B-thinking): https://arxiv.org/abs/2607.23809
 - ReSum (Alibaba Tongyi, 2025): https://arxiv.org/abs/2509.13313
@@ -403,8 +412,9 @@ Never invent an employer or dates: North American employers verify employment, a
 - Qwen3.5 chat template (thinking retention): https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/chat_template.jinja
 - GGUF sizes: https://huggingface.co/unsloth/Qwen3.5-9B-GGUF · https://huggingface.co/unsloth/Qwen3.5-4B-GGUF · https://huggingface.co/unsloth/Qwen3.5-2B-GGUF · https://huggingface.co/Qwen/Qwen3-4B-GGUF · https://huggingface.co/Qwen/Qwen3-8B-GGUF
 - Unsloth Qwen3.5 fine-tuning: https://unsloth.ai/docs/models/qwen3.5/fine-tune
-- Qwen3-Embedding: https://huggingface.co/Qwen/Qwen3-Embedding-0.6B · https://huggingface.co/Qwen/Qwen3-Embedding-8B-GGUF
+- Qwen3-Embedding: https://huggingface.co/Qwen/Qwen3-Embedding-0.6B · https://huggingface.co/Qwen/Qwen3-Embedding-8B-GGUF · Qwen3-Reranker: https://huggingface.co/Qwen/Qwen3-Reranker-0.6B · `process_inputs` truncation (README): https://github.com/QwenLM/Qwen3-Embedding
 - llama.cpp hybrid-cache issues: https://github.com/ggml-org/llama.cpp/issues/22384 · https://github.com/ggml-org/llama.cpp/issues/24587
 - pgvector HNSW limits: https://docs.pgedge.com/pgvector/v0-8-2/hnsw/ · `hnsw.ef_search` (default 40 caps returned rows): https://github.com/pgvector/pgvector#query-options
 - Pyserini install: https://github.com/castorini/pyserini/blob/master/docs/installation.md
+- Postgres `websearch_to_tsquery` (bare terms ANDed, `or` → `|`): https://www.postgresql.org/docs/16/textsearch-controls.html
 - gpt-4.1 API retirement (third-party): https://thenewstack.io/openai-gpt4o-api-shutdown · https://www.digitalapplied.com/blog/gpt-4o-gpt-4-1-api-shutdown-january-2027

@@ -232,9 +232,14 @@ def ground(img, instr, tau, D=2, cap=0.9e6):
 | `scroll` | `scroll(0, ±delta)` from `direction`; delta fixed on the dev subset |
 | `drag` | two grounder calls, then `mouse_drag_and_drop(x1, y1, x2, y2)` (drag-*, use-slider, highlight-text tasks) |
 
+- **Silent-failure checks** (executor, identical in every arm): an action can return no error yet commit the wrong value. **Focus**: before `type` (`select`: before its `keyboard_type`), `document.activeElement` must be editable (for `select`, a `<select>`), else the step fails before any key is sent. Playwright emulates page focus, so page focus proves nothing; an OS-level driver also checks the foreground window.
+- **Read-back**: after `type`, the focused field's DOM value must end with `text`. Date and time inputs store a normalised value (*03/15/2016* → *2016-03-15*, *3:45 PM* → *15:45*; `enter-date`, `enter-time`), so `text` is converted first; unparseable → n.a. After `select`, the selected option's label (what MiniWoB's `choose-list` reward reads) must equal `option`, case- and accent-folded. `select` is the substitution case: type-ahead in Blink (Chromium's rendering engine) matches a case- and accent-insensitive prefix, so *Niger* can commit *Nigeria* (both in MiniWoB's country list). S0 tags tasks whose text lives outside `.value` (`terminal` clears its input on every key): n.a. there.
+- **No clipboard**: `press` rejects paste chords (`ControlOrMeta+v`, `Shift+Insert`): any application can change the clipboard between copy and paste. `copy-paste` tasks are typed from the AXTree and scored by exact match, trailing space included: S0 checks the AXTree keeps it and tags both, reported apart.
+- **Failure classes**: a mismatch fails the step, returns as the previous error and is an **execution** failure (per step, every arm). Grounding is the A-oracle gap (aggregate); a not-editable focus after a click is reported with it.
+- **Check tests**: S0 plants one wrong and one correct case per check (correct: `enter-date`, `enter-time` among them); only the wrong one may fire. The first A-oracle dev-subset run (S3) logs checks without failing steps: a mismatch on a rewarded episode counts as a false positive (an upper bound), reported as a rate.
 - **Termination**: env reward or `terminated`, planner `done`, or BrowserGym's **10-step cap** (kept for comparability). **Budgets**: ≤ 4 grounder queries per target (a drag has two targets); 30 s per step. S0 checks whether MiniWoB's in-page timers are enforced; if so, slow-inference timeouts are reported per task.
 - **Baselines**: **A0** = single Qwen3.5-4B with vision, planning and emitting coordinates in one call. **A-oracle** = the planner sees the AXTree **with** ids and names one; the executor acts on its box center (grounding upper bound). **A-API** (optional) = commercial planner on the 30-task dev subset, $20 cap.
-- **Per-step log**: planner ms, grounder ms, depth, confidence, peak VRAM, action, reward.
+- **Per-step log**: planner ms, grounder ms, depth, confidence, peak VRAM, action, reward, check (ok / not-editable / paste-rejected / mismatch / n.a.).
 - **Visual vs non-visual**: A0 sees pixels and the portable planner does not, so tasks whose goal depends on what is drawn (color, shape, canvas content) are tagged in S0, before any agent run, and reported apart.
 
 ## 8. Hardware Profiles
@@ -303,11 +308,11 @@ With vision, both models need 5.36 GB of weights alone, hence the text-only plan
 |---|---|---|
 | **S0, part 1** | 1–2 | Repo, `uv`, pinned llama.cpp and GGUF revisions on both machines; reproduction prompt and per-model coordinate parsers; 200-step training probe; memory configs M1–M5 measured |
 | **Gate** | end of 2 | **Week-2 go/no-go** (below) |
-| **S0, part 2** | 3–4 | **Reproduce Qwen3.5-2B SSPro 54.5 (non-thinking) within ±3 points** (defined below); cap curve native → 1.6 → 0.9 → 0.6 MP, both machines; Q8_0 / Q4_K_M deltas; 0.8B / 4B baselines; base 0.8B vs 2B discordance; thinking runs where they terminate (card warns of 2B thinking loops); SSv2 baselines; MiniWoB visual-task tags; MiniWoB-4K viewport check |
+| **S0, part 2** | 3–4 | **Reproduce Qwen3.5-2B SSPro 54.5 (non-thinking) within ±3 points** (defined below); cap curve native → 1.6 → 0.9 → 0.6 MP, both machines; Q8_0 / Q4_K_M deltas; 0.8B / 4B baselines; base 0.8B vs 2B discordance; thinking runs where they terminate (card warns of 2B thinking loops); SSv2 baselines; MiniWoB task tags (visual, copy-paste, text outside `.value`) and silent-failure planted cases (§7.7); MiniWoB-4K viewport check |
 | **S1** | 5–8 | Web minter + UIA harvester with gates; page snapshot; instruction writer; cascade and three confidence signals with AUROC. **Week-6 demo:** 2B hits a 12-pixel icon on a 4K screenshot, zoom path drawn |
 | **S2** | 9–10 | LoRA round 1 on 0.8B (30k) with the SSv2 gate; web-only vs web + native ablation (10k); per-domain table; stretch: AX harvester, Jedi-slice control |
-| **S3** | 11–12 | MiniWoB agent with A0 and oracle baselines; MiniWoB-4K with and without zoom; overnight Pareto sweeps on both machines |
-| **S4** | 13–14 | grounder-svc hardening, step monitoring, decontamination report, write-up; stretch: MLX export |
+| **S3** | 11–12 | MiniWoB agent with A0 and oracle baselines; check false-positive rate (§7.7); MiniWoB-4K with and without zoom; overnight Pareto sweeps on both machines |
+| **S4** | 13–14 | grounder-svc hardening, step monitoring, decontamination report, write-up (§14); stretch: MLX export |
 | — | 15 | Interview sprint |
 
 **Week-2 go/no-go (end of session 2)**, on the 6 GB Windows card unless stated:
@@ -351,6 +356,7 @@ With vision, both models need 5.36 GB of weights alone, hence the text-only plan
 | Gate loses calibration after LoRA or at Q4 | That is claim 2 either way; recalibrate τ per checkpoint on the minted split |
 | Prior art | Cited up front (§1); claims cover small, quantized, local models and agent throughput |
 | Contamination | Ban list (§5.2); Jedi slice filtered of OSWorld/WAA rollouts; pHash dedupe; report |
+| Silent GUI failures: an action returns no error but commits the wrong value, misread as a planning or grounding miss | §7.7 checks in every arm; mismatches are their own failure class. MiniWoB's typed-field and `choose-list` rewards read DOM `.value` or the selected label, as the read-back does; `terminal` (its own element) and `text-editor` (the Quill editor's model) do not, nor would any app with its own document model: read-back n.a. (reading such a model: untested) |
 | MiniWoB too slow | 30-task dev subset; overnight full runs for final configs only |
 | Compute calendar overruns | Cut stretch items in order (§10) |
 
@@ -373,7 +379,7 @@ List this under EXPERIENCE only with a real engagement: the mentoring organizati
 - **Data engines are the job**: OS-Atlas, UGround, Jedi and GroundCUA are data pipelines first; this one has gates and a data card.
 - **The budget is a spec**: on-device and enterprise-desktop teams ship against "fits 6 GB at p50 ≤ 1.5 s".
 - **Costed test-time compute** against an equal-compute control; **reproduction and regression gates before claims**.
-- **Failure attribution** answers the first product question: does the agent not know what to do, or can it not click it?
+- **Failure attribution** answers the first product question: does the agent not know what to do, can it not click it, or did its action silently do something else?
 
 ## 14. Interview Leverage
 
@@ -382,6 +388,8 @@ List this under EXPERIENCE only with a real engagement: the mentoring organizati
 - **Evaluation**: McNemar MDE and n, superiority vs non-inferiority, clustered episodes, AUROC and calibration, equal-compute controls, decontamination.
 - **Data and efficiency**: accessibility-tree harvesting and QC (the Weibo story); GGUF, mmproj and KV-cache memory, CUDA vs Metal vs MLX (the CAS story); crop-to-global transforms, point-in-box scoring, a bounded cascade.
 - **Behavioral**: why local matters, prior art found mid-project, publishing negative results.
+- **Drills** (practice prompts on common agent-engineering themes): *"Each step is 90% reliable; how reliable is a ten-step task, and what do you change?"* → §7.6, §7.7; *"How do you know a keystroke or a dropdown choice did what the agent meant?"* → §7.7; *"The agent failed: did it pick the wrong action or execute the right one badly?"* → §7.7, §1 claim 4.
+- **Write-up:** one post under the mentee's own byline (S4, §10), working title *"Four pixels left: what a 2B grounder misses on a 6 GB GPU, and what zoom and a read-back catch"*: hook, context, the work (failure before fix: base-2B misses on 4K icons, then zoom and LoRA, §9 ladder), what I'd do differently (the pre-declared null or fallback: H1 or claim 3 not supported under the §9 rules, worded as in §12; configs M2–M5, §8), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
@@ -397,3 +405,4 @@ List this under EXPERIENCE only with a real engagement: the mentoring organizati
 - OSWorld-G / Jedi: https://arxiv.org/abs/2505.13227 · https://osworld-grounding.github.io · OSWorld: https://arxiv.org/abs/2404.07972 · GroundCUA: https://arxiv.org/abs/2511.07332
 - RegionFocus: https://arxiv.org/abs/2505.00684 · UI-Zoomer: https://arxiv.org/abs/2604.14113 · AutoFocus: https://arxiv.org/abs/2605.02630 · Zoom Consistency: https://arxiv.org/abs/2604.15376
 - BrowserGym: https://arxiv.org/abs/2412.05467 · MiniWoB setup: https://github.com/ServiceNow/BrowserGym/blob/main/browsergym/miniwob/README.md · Explorer: https://arxiv.org/abs/2502.11357
+- Silent-failure checks (§7.7): BrowserGym actions: https://github.com/ServiceNow/BrowserGym/blob/main/browsergym/core/src/browsergym/core/action/functions.py · MiniWoB task pages: https://github.com/Farama-Foundation/miniwob-plusplus/tree/main/miniwob/html/miniwob · Blink type-ahead: https://github.com/chromium/chromium/blob/main/third_party/blink/renderer/core/html/forms/type_ahead.cc · Playwright focus emulation: https://github.com/microsoft/playwright/blob/main/tests/library/emulation-focus.spec.ts · Windows clipboard: https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-the-clipboard

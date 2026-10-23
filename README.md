@@ -1,6 +1,6 @@
 # AI Agent Engineering Project Proposals
 
-Design documents for 1:1 mentoring projects in **LLM agents**: test-time search, post-training of small models, terminal / research / GUI agents, evaluation infrastructure, safety, self-improvement, and multi-agent simulation. Each doc is a self-contained engineering proposal: thesis and measurable claims, stack, benchmarks, architecture, agent loop, hardware profiles, evaluation plan, milestones, risks, résumé bullets, and interview leverage.
+Design documents for 1:1 mentoring projects in **LLM agents**: test-time search, post-training of small models, terminal / research / GUI agents, evaluation infrastructure, safety, self-improvement, multi-agent simulation, and agent memory & context files. Each doc is a self-contained engineering proposal: thesis and measurable claims, stack, benchmarks, architecture, agent loop, hardware profiles, evaluation plan, milestones, risks, résumé bullets, and interview leverage.
 
 Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-project-proposals). Same bar, same 19-hour / 15-session shape, and the same mentee.
 
@@ -18,8 +18,11 @@ Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-p
 | [06](06_Ctrl-Z_Design_Doc.md) | **Ctrl-Z** | Agent safety runtime | Copy-on-write shadow-world execution and an MCP gateway. Input-side vs outcome-side prompt-injection defence is compared under static and adaptive attack (AgentDojo) |
 | [07](07_HarnessForge_Design_Doc.md) | **HarnessForge** | Self-improving agents | An archive of agent-harness code evolves overnight. Successive halving and paired-bootstrap promotion gates stop it from fooling itself, with random-mutation controls |
 | [08](08_SimCrowd_Design_Doc.md) | **SimCrowd** | Multi-agent simulation for recsys | Generative user agents on a local 4B run offline A/B tests. They are validated against real behaviour logs and calibrated, and fidelity metrics act as CI gates |
+| [09](09_memtidy_Design_Doc.md) | **memtidy** | Agent memory & context files | mdsieve, a public benchmark of what a local 4B agent pays to find one note among thousands of plugin markdown files: its own grep loop vs a noise filter vs an FTS5 index, result format and tool uptake, and a powered, pre-registered kill rule for vectors |
 
-[IDEATION.md](IDEATION.md) records how these eight were chosen: 30 brainstormed ideas, three judges' scores, and why the others were dropped. Several rejected ideas, such as Ghostrun, Metagame and AgentMall, make good stretch goals.
+[IDEATION.md](IDEATION.md) records how the first eight were chosen: 30 brainstormed ideas, three judges' scores, and why the others were dropped. Several rejected ideas, such as Ghostrun, Metagame and AgentMall, make good stretch goals. 09 was added on 2026-10-22 and scored by the same three lenses (IDEATION.md, "Added After the Original Selection").
+
+> **09 builds on the mentor's own tool.** memtidy is the mentor's planned open-source project (no code yet). 09's §2 "Who builds what" sets the credit split and the conflict-of-interest safeguards: the mentee owns the benchmark (mdsieve) and builds a reference tool to memtidy's spec as its system under test; memtidy itself stays the mentor's and is benchmarked only once it exists. Upstreaming waits for the mentor's pre-release check and written contributor terms. Mentor and mentee agree it in writing before S0.
 
 ## Choosing One
 
@@ -31,8 +34,10 @@ Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-p
 | Multimodal / computer-use | 04 Crosshair | 06 Ctrl-Z |
 | Trust & safety / security ML | 06 Ctrl-Z | 05 BlackBox |
 | Recsys / ranking (continues the earlier repo) | 08 SimCrowd | 01 Compass |
+| Evaluation infrastructure (eval harnesses, judge calibration, regression gates) | 05 BlackBox | 02 Shellwright |
+| Context engineering / agent memory and developer tools | 09 memtidy | 03 Spelunker |
 
-The docs cross-reference each other where one project's component helps another, for example BlackBox's τ² and BFCL state serializers reused by Ctrl-Z, or Shellwright's distillation trainer reused by Spelunker. A second project can therefore reuse parts of the first instead of starting from zero.
+The docs cross-reference each other where one project's component helps another, for example BlackBox's τ² and BFCL state serializers reused by Ctrl-Z, or Shellwright's distillation trainer reused by Spelunker. A second project can therefore reuse parts of the first instead of starting from zero. 09 memtidy likewise records every run of its local agent loop as a BlackBox (05) cassette.
 
 ## Shared Design Principles
 
@@ -42,6 +47,7 @@ The docs cross-reference each other where one project's component helps another,
 - **Pre-registered statistics.** Sample sizes are chosen from a variance pilot, minimum detectable effects are stated up front, and an inconclusive result is reported as inconclusive.
 - **Honest reporting.** LLM-as-judge scores are labelled as such. No comparison is made against a model the project never ran. Numbers that could not be verified are marked "to be measured".
 - **Truthful placement.** Résumé bullets are written in experience voice, with numbers filled in as sprints land. Each doc's Placement Note rules out inventing an employer or dates.
+- **One public write-up.** Each project ends with one post under the mentee's own byline (§14 of every doc): hook, context, the work (failure before fix), what I'd do differently, takeaways. Every number traces to the results table, and vendor numbers are labelled.
 
 ## Freshness
 

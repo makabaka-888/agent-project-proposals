@@ -27,7 +27,7 @@ Four claims, each with a pre-registered test (§9):
 
 1. **Laptop DGM-lite works:** evolved harness code lifts Qwen3.5-4B's held-out pass@2 (solved within two attempts, §5.1) over the seed harness (exploratory: vs. the seed-harness 9B).
 2. **It beats controls at equal GPU-hours** (§7.8); an API-proposer arm separates proposer weakness from method failure.
-3. **Overfitting and transfer are measured:** search-vs-held-out gap along the champion lineage; transfer to Qwen3.5-9B and 02 Shellwright's 30-task TBLite-laptop slice.
+3. **Overfitting and transfer are measured:** search-vs-held-out gap along the champion lineage; transfer to Qwen3.5-9B and TBLite-30 (30 tasks of 02 Shellwright's TBLite-laptop, §5.2).
 4. **Adaptive validation is cheap; the gate is calibrated:** variance-weighted sampling plus successive halving finds the full-set winner with X% of the evaluations (with a confidence interval, CI), testing Task-CoEvolve's reported 80% reduction; false promotions are measured on null children.
 
 **Why it is fun:** a program improves its own source overnight (*"Night 3: champion changed — syntax-check each file after writing it; +X, confirmed on fresh seeds"*), and few harness-search results report how often their selection rule promotes a change that does nothing.
@@ -40,6 +40,7 @@ Build a **tamper-resistant evaluator** for Aider polyglot in Docker (§7.1), the
 ### Non-Goals
 - Weight updates (01 Compass, 02 Shellwright, 03 Spelunker): the model is frozen. Hand-run harness ablations: 02 Shellwright, whose agent-computer interface (ACI) variants can seed this library.
 - A nondeterminism study (05 BlackBox); only the noise floor needed for power is measured. "Replay" here re-runs selection on this project's stored outcome matrix, not BlackBox's replay-based test selection; both calibrate on A/A runs (a harness against itself).
+- What a small agent pays to find a note among noisy md files (CLAUDE.md, AGENTS.md, memory): 09 memtidy holds the loop, budgets and task card fixed and compares a pre-registered grid of tool menus, result delivery, a one-line pointer and noise share; HarnessForge searches harness code and prompt text.
 - Like-for-like DGM comparison (§5.1); full DGM self-reference (the evolving harness modifying itself) beyond a stretch arm; evaluator, grader or budget changes; cloud dependencies; full SWE-bench or Terminal-Bench 2.
 
 ## 3. Alignment With Prior Experience
@@ -103,8 +104,9 @@ The Qwen3-4B-Instruct-2507 card's 12.9 (Qwen3-4B non-thinking 13.8; harness and 
 |---|---|---|
 | **OpenThoughts-TBLite**: 100 Terminal-Bench tasks (40 easy / 26 medium / 26 hard / 8 extreme), r = 0.911 with Terminal-Bench 2 | Harbor + Docker via WSL2 (verify in S0); TBLite-30; Qwen3.5-4B; harness unchanged | **Qwen3.5-4B 31.8 ± 3.8** (Tmax harness; the anchor 02 Shellwright reproduces); Qwen3.5-9B 41.9 ± 2.7 (Tmax); Ai2's OpenThoughts-Agent fine-tune 53.0 ± 0.7; Tmax-9B (reinforcement learning) 57.2 ± 2.5 |
 | **SWE-bench Verified Mini** (optional, ledger slack only): 50 instances | ~5 GB of images (EvalScope docs); x86, Windows only | Small-model baselines unknown |
+| **data-eng-bench** (optional, ledger slack only; Apache-2.0): 103 dbt tasks, pytest verifiers on the materialized tables | Harbor ≥ 0.21.0; hermetic DuckDB variant (`retail.duckdb` ≈ 489 MB); harness unchanged; **floor check** (S0b): 10 `fast-30` tasks, seed harness, Qwen3.5-4B, 1 attempt, dropped unless ≥ 1 solves; if run: seed vs. final champion on `fast-30`, 1 seed | Small-model baselines unknown; reference solutions public: descriptive only, outside `prereg-v1` |
 
-- **TBLite-30** = 02 Shellwright's 30-task TBLite-laptop slice: difficulty-stratified, resource-filtered from each `task.toml`, whose turn and timeout budgets apply (same filter here if unpublished).
+- **TBLite-30** = 30 tasks drawn, difficulty-stratified, from 02 Shellwright's **TBLite-laptop** (the TBLite tasks whose `task.toml` resources fit the WSL cap; same filter here if unpublished), draw seed frozen in `prereg-v1`. Each `task.toml`'s timeouts are the budget; turns stay a harness choice (§7.1).
 - Ai2's card calls the Tmax harness "similar to mini-swe-agent" and does not define its ±; other-harness full-set numbers are plausibility anchors only.
 - **Cost:** the card's 51–84 min per 100 tasks on 32 concurrent cloud sandboxes (API models) implies ≤ ≈ 16–27 sandbox-minutes per task: up to ≈ 4–7 h per TBLite-30 pass at concurrency 2 (S0b times 5 tasks).
 
@@ -181,7 +183,7 @@ Fourteen unit-tested diffs, written in S1 so night 1 is not wasted:
 | Tools (2) | `view`/`grep`; native tool calls |
 
 ### 7.4 Proposer
-Inputs within 32k (lengths measured in S0a): parent source 16k (untouchable files cut to signatures), library diffs as examples 4k (truncated first), failure summary 6k (failure-class histogram, per-language pass rate, three failed trajectories), lineage hypotheses and outcomes 2k, output 4k. **Redacted** trajectories keep failing test names and error class but drop expected values, literal outputs and assertion diffs, so hidden-test content never becomes a copyable string. Output: a ≤ 3-sentence hypothesis plus a unified diff. A failed `git apply` or check gets one repair, then the child is recorded invalid (counted, never hidden).
+Inputs within 32k (lengths measured in S0a): parent source 16k (untouchable files cut to signatures), library diffs as examples 4k (truncated first), failure summary 6k (failure-class histogram, per-language pass rate, three failed trajectories), lineage hypotheses and outcomes 2k, output 4k. **Redacted** trajectories keep failing test names and error class but drop expected values, literal outputs and assertion diffs, so hidden-test content never becomes a copyable string. Output: a ≤ 3-sentence hypothesis plus a unified diff, then an end-marker line. A failed `git apply` or check gets one repair, then the child is recorded invalid (counted, never hidden).
 
 ### 7.5 Archive, Selection, Successive Halving
 Every valid child that finishes rung 0 stays in the archive (as in DGM). At 10–30% scores DGM's parent weight is in the sigmoid's exponential tail: a 10-point gap ≈ 2.5–2.6× the weight. One generation, halving factor η = 3:
@@ -242,6 +244,8 @@ DGM's authors report their system removed the markers that detect hallucinated t
 ### 7.9 Morning Report
 Markdown and plots, **S only**: GPU-hours and ledger burn vs. plan (§8.4), proposals and valid share, champion changes (hypothesis, diff, confirmation Δ, canary), audit flags, tokens, dollars, "H sealed until S4". A **drift sentinel** ignores pass rate (10 tasks at ~10% give about one pass a night). It tracks tokens/s, prefill time and cache-hit rate from `llama-server --metrics`, plus exact match of temperature-0 completions on 5 fixed prompts on one idle slot. A shift flags throttling or driver drift.
 
+**Interrupted nights.** A night can stop mid-way (API usage limit, reboot, out-of-memory kill), and a stopped run may already have written valid rows, so outputs are checked before any re-run. Each job's rows and trajectory commit as it ends; the queue re-queues every missing `(variant, task, seed)` job (a cut job re-runs both attempts; its partial trajectory is kept and flagged, never scored), and a cut generation finishes its seeded draw (a redraw would be an extra selection). GPU-hours lost to a cut are logged, not charged to B; the resume draws on slack (§8.4). A length stop raises no error, and a diff cut at a hunk boundary still applies, so a length stop (`finish_reason` `length` or the API's equivalent) or a missing end marker counts as a failed apply (one repair, §7.4); a write that hits N (§7.2) is its own failure class. The report compares what is on disk with the plan (rows per rung vs. expected, diff SHA-256 in archive vs. worktree, champion tag vs. hash); a mismatch heads it as **night incomplete**.
+
 ## 8. Hardware Profiles
 
 ### 8.1 Profiles and Placement
@@ -285,7 +289,7 @@ On the 6 GB laptop, `portable`: seed harness, Qwen3.5-4B, 30 S tasks × 2 seeds,
 |---|---|---|---|
 | S0a | Gate run (30 tasks × 2 seeds) + generation skeleton | 0.6 E + proposer | ≈ 2–3 |
 | S0b | 8 A/A seed runs; 4 paraphrase near-nulls; Aider's harness on the 4B | 13 E | ≈ 20 |
-| S0b | 9B floor (30 S tasks); H sample (40 × 2 seeds); 5 TBLite tasks | — | measured |
+| S0b | 9B floor (30 S tasks); H sample (40 × 2 seeds); 5 TBLite tasks; 10 data-eng-bench tasks | — | measured |
 | S1 | Hand-tuned control; shakedown nights | ≤ B | ≤ 27; rest slack |
 | S2 | Main arm to B (3 nights); 2 full-evaluation generations (2 × 12 E); normal nights | B + 24 E + rest | 27 + 36 + 18 = 81 |
 | S3 | Random, GEPA, API proposer at B; replay study (CPU) | 3 B | 81 (no slack) |
@@ -293,7 +297,7 @@ On the 6 GB laptop, `portable`: seed harness, Qwen3.5-4B, 30 S tasks × 2 seeds,
 | S4 | 9B transfer: seed + final champion × 2 seeds on H | 4 E_H (9B) | measured |
 | S4 | TBLite-30: seed + final champion × 2 seeds | 4 T | up to ≈ 16–28 |
 
-**Pre-registered cut order** if a sprint's measured sum exceeds its nights: (1) optional arms (greedy, (c′), second search runs, SWE-bench Verified Mini); (2) lineage gap points beyond the final champion, and champion at B; (3) 9B transfer to 1 seed; (4) TBLite-30 to 1 seed, descriptive. Never cut: claim 1 (3 seeds) and claim-2 controls (2 seeds). S1's spare nights and daytime runs are the only slack; a failed night re-runs from it, not from another arm's budget.
+**Pre-registered cut order** if a sprint's measured sum exceeds its nights: (1) optional arms (greedy, (c′), second search runs, SWE-bench Verified Mini, data-eng-bench); (2) lineage gap points beyond the final champion, and champion at B; (3) 9B transfer to 1 seed; (4) TBLite-30 to 1 seed, descriptive. Never cut: claim 1 (3 seeds) and claim-2 controls (2 seeds). S1's spare nights and daytime runs are the only slack; a failed night re-runs from it, not from another arm's budget.
 
 ## 9. Evaluation Plan
 
@@ -331,10 +335,10 @@ On the 6 GB laptop, `portable`: seed harness, Qwen3.5-4B, 30 S tasks × 2 seeds,
 | **S1** | 5–8 | Mutation library (14 diffs); archive, proposer, checks, audit, halving, gate, gateway, report; hand-tuned control frozen. **Week-6 demo:** first overnight run and morning report |
 | **S2** | 9–10 | Main arm: budget B (first 3 nights), both full-evaluation generations, normal nights |
 | **S3** | 11–12 | Controls at B (3 nights each); optional arms only with slack; replay study (CPU); `prereg-v2` |
-| **S4** | 13–14 | H unsealed once: claims 1–3, lineage gap curve, 9B and TBLite-30 transfer, optional SWE-bench Verified Mini, audit report, dashboards, every pre-registered test |
-| — | 15 | Interview sprint |
+| **S4** | 13–14 | H unsealed once: claims 1–3, lineage gap curve, 9B and TBLite-30 transfer, optional SWE-bench Verified Mini and data-eng-bench, audit report, dashboards, every pre-registered test |
+| — | 15 | Interview sprint; write-up (§14) |
 
-The reproduction validates runner and grader, not the method. Secondary reports put API removal of gpt-4.1-mini at 2027-01-14 and of gpt-4.1-nano at 2026-10-23 (so nano is no fallback); the mini run must finish before 2027-01-07 (S0 ends around week 3–4). Fallback: a leaderboard open-weight row via a hosted provider, e.g. Qwen3 32B (40.0%, diff), within the USD 5 S0 cap once provider and price are confirmed.
+The reproduction validates runner and grader, not the method. As of 2026-10-22 (nano: OpenAI's deprecations page, search snippet; mini: secondary reports of OpenAI's 2026-10-14 notice; re-check in S0), gpt-4.1-nano's shutdown is announced for 2026-10-23 (no fallback) and gpt-4.1-mini's removal reported for 2027-01-14; the mini run must finish before 2027-01-07 (S0 ends around week 3–4). Fallback: a leaderboard open-weight row via a hosted provider, e.g. Qwen3 32B (40.0%, diff), within the USD 5 S0 cap once provider and price are confirmed.
 
 ## 11. Risks & Mitigations
 
@@ -345,6 +349,7 @@ The reproduction validates runner and grader, not the method. Secondary reports 
 | Reward hacking | Hidden tests, test-count check, AST audit, redacted proposer inputs, canaries (§7.1, §7.7); forge outside `docker-users` |
 | Human peeking at H | Evaluator-only H table, S-only reports, one unsealing (§7.1, §7.6) |
 | Compute overrun | Measured ledger, pre-registered cut order, nightly burn (§8.4) |
+| Night cut mid-way; silent truncation | Per-job commits, same-draw resume, length-stop and end-marker checks, report checked on disk (§7.9) |
 | Compile time; 4B floor on C++/Java/Rust | Compiled languages only in H, lower concurrency; offline Gradle cache, per-language timeouts (§7.1); H-cross-language reported apart; re-split rule (§5.1) |
 | Exercism contamination | Paired tests cancel a shared boost; TBLite and SWE-bench Verified Mini are the real checks |
 | llama.cpp #24587 (closed "not planned"): context checkpoints invalidated on sliding-window attention (SWA) and hybrid models such as Qwen3.5 when mid-prompt content changes | Context-rewriting mutations pay re-prefill in measured hours, so search prices it in; cache-hit rate logged; Qwen3-8B fallback |
@@ -380,6 +385,8 @@ List these under EXPERIENCE only for (1) a real engagement with a truthful title
 - **LLM / agent engineering:** edit formats for small models, truncation vs. cache reuse on hybrid attention, thinking budgets, harness vs. model size.
 - **AutoML / SDE:** successive halving, archive vs. greedy, Docker isolation, OS-user boundaries, crash-safe overnight jobs.
 - **Safety and behavioral:** DGM's documented reward hacking and structural defenses; handling a null result; why pre-registration came first.
+- **Drills** (practice prompts on common agent-engineering themes): *"Your self-improving loop raised the score: is it overfitting or gaming the eval?"* → §7.6, §7.7, §9; *"Design the eval that decides whether an agent change ships."* → §7.1, §7.6; *"An agent loops on tools or burns tokens: where do limits live?"* → §7.1, §7.2.
+- **Write-up:** one post under the mentee's own byline (session 15, §10), working title *"I let a coding agent rewrite its own harness for X nights. Here is what the gate refused."* (X from the ledger, §8.4): hook, context, the work (failure before fix: a rung winner that failed confirmation or the canary, §7.6), what I'd do differently (the pre-declared null or fallback: §12 null bullet; α/6 gate, §7.6), takeaways. Every number traces to the results table; vendor numbers are labelled.
 
 ## 15. References
 
@@ -392,4 +399,5 @@ List these under EXPERIENCE only for (1) a real engagement with a truthful title
 - GGUF files: https://huggingface.co/unsloth/Qwen3.5-9B-GGUF · https://huggingface.co/unsloth/Qwen3.5-4B-GGUF · https://huggingface.co/Qwen/Qwen3-8B-GGUF
 - llama.cpp #24587: https://github.com/ggml-org/llama.cpp/issues/24587 · mini-swe-agent: https://github.com/SWE-agent/mini-swe-agent · SWE-bench Verified Mini (EvalScope): https://evalscope.readthedocs.io/en/latest/benchmarks/swe_bench_verified_mini.html
 - Successive halving https://arxiv.org/abs/1502.07943 · Hyperband https://arxiv.org/abs/1603.06560
-- GPT-4.1 API removal (secondary): https://www.digitalapplied.com/blog/gpt-4o-gpt-4-1-api-shutdown-january-2027
+- OpenAI deprecations (as of 2026-10-22): https://developers.openai.com/api/docs/deprecations · GPT-4.1 API removal (secondary): https://www.digitalapplied.com/blog/gpt-4o-gpt-4-1-api-shutdown-january-2027
+- data-eng-bench (accessed 2026-10-22): https://github.com/Snowflake-Labs/data-eng-bench
