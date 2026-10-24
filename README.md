@@ -24,6 +24,23 @@ Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-p
 
 > **09 builds on the mentor's own tool.** memtidy is the mentor's planned open-source project (no code yet). 09's §2 "Who builds what" sets the credit split and the conflict-of-interest safeguards: the mentee owns the benchmark (mdsieve) and builds a reference tool to memtidy's spec as its system under test; memtidy itself stays the mentor's and is benchmarked only once it exists. Upstreaming waits for the mentor's pre-release check and written contributor terms. Mentor and mentee agree it in writing before S0.
 
+### Round-2 candidates
+
+A second brainstorm, covering 30 more ideas on lenses round 1 missed, shortlisted ten. Each has a brief in [candidates/](candidates/) that is ready to expand into a full design doc. These are not yet reviewed proposals.
+
+| Candidate | Paradigm | One line |
+|---|---|---|
+| [Cellmate](candidates/Cellmate.md) | Spreadsheet agent | Writes live formulas, recalculates in LibreOffice and fuzzes its own edits; SpreadsheetBench Verified |
+| [Half-Life](candidates/Half-Life.md) | Eval science | Survival analysis of where small agents fail on long tasks, with each test-time trick priced as a hazard ratio |
+| [Crosstalk](candidates/Crosstalk.md) | Realtime voice | Full-duplex voice agent on a 6 GB laptop that knows when to talk and when to stop; Full-Duplex-Bench |
+| [Rubberstamp](candidates/Rubberstamp.md) | Judge reliability | Measures how best-of-N games an LLM judge on state-verified tool tasks, and tests whether a judge that solves the task first resists it |
+| [Haggle](candidates/Haggle.md) | Agent-to-agent commerce | Two laptops bargain over A2A. A policy engine controls the money and the LLM only talks; A2A-NT |
+| [Tact](candidates/Tact.md) | Proactive assistant | A 0.6B gate decides when to interrupt, with a bounded false-alarm rate; ProactiveBench |
+| [Twin](candidates/Twin.md) | Contamination detection | Isomorphic and counterfactual benchmark twins, plus a detector calibrated by deliberately poisoning a model |
+| [Tell](candidates/Tell.md) | Interpretability / safety | Residual-stream lie probes at a Werewolf table, where the game state supplies the labels |
+| [Paperweight](candidates/Paperweight.md) | Research coding | Equation-level paper retrieval plus self-derived tests; ResearchCodeBench |
+| [Levelsmith](candidates/Levelsmith.md) | Program search | The LLM writes level generators, not levels, and is compared with genetic algorithms at equal budget; PCG Benchmark |
+
 ## Choosing One
 
 | If the target role is… | Start with | Strong second |
