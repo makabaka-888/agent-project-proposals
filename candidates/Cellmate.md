@@ -1,5 +1,7 @@
 # Cellmate — Candidate Brief (Round 2, rank 1)
 
+> **Promoted.** The full proposal is [10 Cellmate](../10_Cellmate_Design_Doc.md). This brief is kept as the input it was written from.
+
 > Not yet a full design doc. This is the brief a writer would expand into one, with the judges' fixes already folded in. Facts were web-checked in October 2026 and still need the usual review pass.
 
 A laptop spreadsheet agent that writes live formulas, recalculates with LibreOffice after every write, and fuzzes its own edits before it hands in the sheet. The claim: engine-in-the-loop beats a Python/openpyxl-only arm at matched turns on SpreadsheetBench Verified-400. Metamorphic self-tests also cut the 'passes test case 1, fails cases 2-3' hard-coded-constant failure. Vendors claim engine beats Python but publish no controlled ablation, and Excel is the most-used programming environment there is.
@@ -7,8 +9,8 @@ A laptop spreadsheet agent that writes live formulas, recalculates with LibreOff
 | | |
 |---|---|
 | Lens | science / data-work product |
-| Benchmark | SpreadsheetBench Verified-400 (local LibreOffice recalc scoring; open baseline Qwen3-8B 15.9 / Spreadsheet-RL-8B 22.3 Pass@1, split unstated); SpreadsheetBench 2 Financial_Model + Debugging only |
-| Models | Qwen3-4B-Instruct Q4_K_M (PC, q8 KV, 16k); Qwen3-8B and Spreadsheet-RL-8B MLX 4-bit (Mac); Qwen3-4B QLoRA RFT |
+| Benchmark | SpreadsheetBench Verified-400 (local LibreOffice recalc scoring; no published ≤ 8B number). Open baselines are on the full 912 set, per test case, Excel 365 gym: Qwen3-4B-Instruct-2507 9.3 / Qwen3-8B 15.9 / Spreadsheet-RL-4B 23.4 / Spreadsheet-RL-8B 22.3 Pass@1; SpreadsheetBench 2 Financial_Model + Debugging only |
+| Models | Qwen3-4B-Instruct-2507 Q4_K_M (PC, q8 KV, 16k); Spreadsheet-RL-4B (PC); Qwen3-8B and Spreadsheet-RL-8B 4-bit (Mac); Qwen3-4B QLoRA RFT |
 | Hardware fit | 4B agent + LibreOffice headless CPU workers on PC; 8B arms on Mac; QLoRA RFT at <=4k segments fits 6 GB |
 | Best for roles | AI engineer (copilots / agent products), fintech / enterprise AI engineer, applied scientist (agents, post-training) |
 | Relation to existing docs | New domain. It is close to Shellwright only in having a harness ablation plus distillation, and close to round-1 MetricPilot only in being data work (MetricPilot was read-only SQL). The executable critic upgrades the College-Agent Writer-Critic story. Strong Changsheng fit: fund models live in Excel. | 
@@ -22,11 +24,18 @@ A laptop spreadsheet agent that writes live formulas, recalculates with LibreOff
 - 8B arms on the Mac only; PC stays at 4B
 - Add one fund-style workflow demo (factor screen with live formulas)
 
+## Corrections after verification (2026-10-23)
+
+- The Spreadsheet-RL numbers are on the full 912 set (2,722 per-test-case rollouts, Excel 365 v2512), not on Verified-400. The "split unstated" note was wrong.
+- A Spreadsheet-RL-4B checkpoint exists (Qwen3-4B-Thinking-2507 base, 23.4) and fits the 6 GB PC.
+- Verified-400 has one test case per task. The 3-per-instruction figure applies only to the 912 set.
+- Spreadsheet-RL's ExcelForum train split (5,925 tasks after 2024-01-01, CC BY-SA 4.0) is a larger RFT pool than the 512 non-Verified tasks. The full design doc (10) uses it, deduplicated.
+
 ## Brief
 
-**Thesis.** Most of the gap between a 4-8B local model and frontier spreadsheet agents on SpreadsheetBench Verified-400 is a harness problem, not a parameter problem. Frontier scaffolds now report about 86-95% (verified listings disagree on the exact top numbers). The open Qwen3-8B scores 15.9 Pass@1, and Spreadsheet-RL-8B 22.3, split unstated. Claims:
+**Thesis.** Most of the gap between a 4-8B local model and frontier spreadsheet agents on SpreadsheetBench Verified-400 is a harness problem, not a parameter problem. Frontier scaffolds now report about 86-99% on Verified-400 (vendor-reported; an aggregator snapshot of 2026-10-18 tops out at 99.25%, and listings disagree). On the full 912-task set under Spreadsheet-RL's Excel 365 gym (per test case), Qwen3-4B-Instruct-2507 scores 9.3 Pass@1, Qwen3-8B 15.9, Spreadsheet-RL-4B 23.4 and Spreadsheet-RL-8B 22.3. Claims:
 - **C1.** Engine-in-the-loop beats a Python/openpyxl-only arm at matched turns and tokens, paired by task, with an MDE from the pilot. In the engine arm, LibreOffice headless recalculates after every write and the agent reads back values plus #REF!/#VALUE! errors.
-- **C2.** Metamorphic self-tests cut the hard-coded-constant failure class by a pre-registered fraction. The test is to perturb input cells on a scratch copy, recalculate, and check the invariants. The benchmark has about 3 hidden test cases per instruction.
+- **C2.** Metamorphic self-tests cut the hard-coded-constant failure class by a pre-registered fraction. The test is to perturb input cells on a scratch copy, recalculate, and check the invariants. The full 912 set has about 3 test cases per instruction, but Verified-400 ships only one (800 files for 400 tasks), so C2 is measured by replaying the agent's edits onto the 912 set's cases 2-3.
 - **C3.** A structure map (table-region detection plus SheetCompressor-style anchors) cuts prompt tokens by at least 3x with no accuracy loss.
 - **C4.** QLoRA rejection-sampling fine-tuning of Qwen3-4B on verified trajectories from the 512 non-Verified tasks is compared with Spreadsheet-RL-8B under the same harness.
 
@@ -45,7 +54,7 @@ Budget: at most 12 turns and an 8k prompt. Regions that do not fit are read on d
 - QLoRA RFT of the 4B: Unsloth, at most 4k-token segments, overnight.
 
 **Benchmarks.**
-- Verified-400 is public (HF/GitHub), and its evaluator recalculates with LibreOffice 7.5+ on Windows and macOS.
+- Verified-400 is public (HF/GitHub), and its evaluator recalculates with LibreOffice 7.5+ on Windows, macOS and Linux. On Windows the default backend is win32com whenever Excel is installed, so `--backend libreoffice` must be forced.
 - A stratified 200-task lite subset is used for development.
 - One full pass is about 3.6M tokens, or 1-2 nights per arm.
 - SpreadsheetBench 2 runs only for the Financial_Model and Debugging categories. Visualization needs Excel COM plus a VLM API, so it is skipped. Its published best is 34.89% and open models score 7-17%.

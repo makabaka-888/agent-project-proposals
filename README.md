@@ -19,6 +19,9 @@ Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-p
 | [07](07_HarnessForge_Design_Doc.md) | **HarnessForge** | Self-improving agents | An archive of agent-harness code evolves overnight. Successive halving and paired-bootstrap promotion gates stop it from fooling itself, with random-mutation controls |
 | [08](08_SimCrowd_Design_Doc.md) | **SimCrowd** | Multi-agent simulation for recsys | Generative user agents on a local 4B run offline A/B tests. They are validated against real behaviour logs and calibrated, and fidelity metrics act as CI gates |
 | [09](09_memtidy_Design_Doc.md) | **memtidy** | Agent memory & context files | mdsieve, a public benchmark of what a local 4B agent pays to find one note among thousands of plugin markdown files: its own grep loop vs a noise filter vs an FTS5 index, result format and tool uptake, and a powered, pre-registered kill rule for vectors |
+| [10](10_Cellmate_Design_Doc.md) | **Cellmate** | Spreadsheet / data-work agent | Writes live formulas instead of pasted values, recalculates in LibreOffice after every edit, and fuzzes its own sheet before handing it in. An engine-in-the-loop ablation runs on SpreadsheetBench Verified, followed by RFT on a 4B |
+| [11](11_Half-Life_Design_Doc.md) | **Half-Life** | Evaluation science / reliability | Survival analysis of long-horizon agent failure, with exact dead-state labels from a seeded gym and hazard shapes per model. Each test-time trick is priced as a hazard ratio per 1k tokens |
+| [12](12_Crosstalk_Design_Doc.md) | **Crosstalk** | Realtime voice agent | A full-duplex voice agent on one 6 GB laptop that fuses acoustic and semantic end-of-turn detection, thinks while the user talks, and attributes every millisecond to a stage, measured on Full-Duplex-Bench |
 
 [IDEATION.md](IDEATION.md) records how the first eight were chosen: 30 brainstormed ideas, three judges' scores, and why the others were dropped. Several rejected ideas, such as Ghostrun, Metagame and AgentMall, make good stretch goals. 09 was added on 2026-10-22 and scored by the same three lenses (IDEATION.md, "Added After the Original Selection").
 
@@ -26,13 +29,10 @@ Companion to [recsys-project-proposals](https://github.com/makabaka-888/recsys-p
 
 ### Round-2 candidates
 
-A second brainstorm, covering 30 more ideas on lenses round 1 missed, shortlisted ten. Each has a brief in [candidates/](candidates/) that is ready to expand into a full design doc. These are not yet reviewed proposals.
+A second brainstorm, covering 30 more ideas on lenses round 1 missed, shortlisted ten. The top three, Cellmate, Half-Life and Crosstalk, are now full proposals (10–12 above). The remaining seven have briefs in [candidates/](candidates/) that are ready to expand into full design docs, but they have not yet been reviewed.
 
 | Candidate | Paradigm | One line |
 |---|---|---|
-| [Cellmate](candidates/Cellmate.md) | Spreadsheet agent | Writes live formulas, recalculates in LibreOffice and fuzzes its own edits; SpreadsheetBench Verified |
-| [Half-Life](candidates/Half-Life.md) | Eval science | Survival analysis of where small agents fail on long tasks, with each test-time trick priced as a hazard ratio |
-| [Crosstalk](candidates/Crosstalk.md) | Realtime voice | Full-duplex voice agent on a 6 GB laptop that knows when to talk and when to stop; Full-Duplex-Bench |
 | [Rubberstamp](candidates/Rubberstamp.md) | Judge reliability | Measures how best-of-N games an LLM judge on state-verified tool tasks, and tests whether a judge that solves the task first resists it |
 | [Haggle](candidates/Haggle.md) | Agent-to-agent commerce | Two laptops bargain over A2A. A policy engine controls the money and the LLM only talks; A2A-NT |
 | [Tact](candidates/Tact.md) | Proactive assistant | A 0.6B gate decides when to interrupt, with a bounded false-alarm rate; ProactiveBench |
@@ -53,6 +53,9 @@ A second brainstorm, covering 30 more ideas on lenses round 1 missed, shortliste
 | Recsys / ranking (continues the earlier repo) | 08 SimCrowd | 01 Compass |
 | Evaluation infrastructure (eval harnesses, judge calibration, regression gates) | 05 BlackBox | 02 Shellwright |
 | Context engineering / agent memory and developer tools | 09 memtidy | 03 Spelunker |
+| AI engineer for copilots / enterprise data tools | 10 Cellmate | 02 Shellwright |
+| Applied scientist, evaluation / reliability science | 11 Half-Life | 05 BlackBox |
+| Voice AI / realtime inference and latency | 12 Crosstalk | 05 BlackBox |
 
 The docs cross-reference each other where one project's component helps another, for example BlackBox's τ² and BFCL state serializers reused by Ctrl-Z, or Shellwright's distillation trainer reused by Spelunker. A second project can therefore reuse parts of the first instead of starting from zero. 09 memtidy likewise records every run of its local agent loop as a BlackBox (05) cassette.
 

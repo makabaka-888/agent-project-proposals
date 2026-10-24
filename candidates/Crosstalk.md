@@ -1,5 +1,7 @@
 # Crosstalk — Candidate Brief (Round 2, rank 3)
 
+> **Promoted.** The full proposal is [12 Crosstalk](../12_Crosstalk_Design_Doc.md). This brief is kept as the input it was written from.
+
 > Not yet a full design doc. This is the brief a writer would expand into one, with the judges' fixes already folded in. Facts were web-checked in October 2026 and still need the usual review pass.
 
 A full-duplex voice agent on one 6 GB laptop that knows when to talk, when to listen and when to stop. It is a scheduled cascade: streaming ASR with an end-of-utterance token, fused acoustic and semantic end-of-turn, a 4B model that thinks while you are still talking, and chunked TTS. Every millisecond is attributed to a stage, and turn-taking is scored on Full-Duplex-Bench next to published Moshi, Freeze-Omni and Gemini Live rows. The interview demo is a live 'interrupt me' test with the latency waterfall on screen.
@@ -16,7 +18,7 @@ A full-duplex voice agent on one 6 GB laptop that knows when to talk, when to li
 
 - ASR via the community ONNX-INT8 export on CPU on both machines; NeMo in WSL2 only for a parity check
 - Build the FDB replayer on a simulated clock; calibrate by reproducing one published Moshi/Freeze-Omni row within CI before any claim
-- Take FDB rows per subset (Candor vs synthetic) from the official repo; sources disagree (Moshi pause TOR 0.980 vs 0.983)
+- Take FDB rows per subset (Candor vs synthetic) from the official repo; sources disagree (Moshi pause TOR 0.980 vs 0.983). Verified 2026-10-23: 0.983 is SoulX-Duplug's unweighted mean of the synthetic (0.985) and Candor (0.980) rows
 - Baseline the open LiveKit turn-detector and Smart Turn v3 alone, plus cite SoulX-Duplug (2603.14877); the new LoRA head must beat both
 - Cut to 3 core claims; lead with think-while-listening; backchannel classifier is stretch
 - Default to Qwen3-4B-Instruct-2507 for re-drafts if Qwen3.5 hybrid prefix caching is costly
@@ -46,6 +48,7 @@ A full-duplex voice agent on one 6 GB laptop that knows when to talk, when to li
 - Qwen3-0.6B LoRA head, ~2-3 GB to train. Train on non-Candor dialogue to avoid contamination.
 - Kokoro-82M on CPU.
 - Baselines: LiveKit turn-detector (Qwen2.5-0.5B fine-tune, LiveKit Model License, 50-160 ms on CPU), Moshi-MLX q4 on the Mac, LFM2.5-Audio-1.5B as GGUF.
+- Corrections (2026-10-23, design doc 12): Smart Turn is now v3.2 (BSD-2-Clause). LiveKit's text detector is deprecated; the audio Turn Detector v1-mini runs locally, and the licence allows LiveKit models only inside LiveKit Agents, so they are baselined on eot-bench (LiveKit's open end-of-turn suite). The community Parakeet-EOU ONNX export streams 320 ms chunks, not the card's 160 ms. The FDB scorer needs NeMo + CUDA (parakeet-tdt-0.6b-v2), and its interruption judge in code is `gpt-4-turbo`, not GPT-4o. LFM2.5-Audio has no Windows runner.
 
 **Benchmarks.**
 - FDB v1: 727 samples, offline; only interruption quality uses a GPT-4o judge, so a labelled local judge is swapped in.
